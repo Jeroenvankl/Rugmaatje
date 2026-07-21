@@ -1,0 +1,78 @@
+import type { Exercise } from '../types'
+
+// Door de fysio geadviseerde basisoefeningen.
+// Principe: rug ALTIJD plat of bol, nooit hol/gestrekt.
+export const DEFAULT_EXERCISES: Exercise[] = [
+  {
+    id: 'crunch-platte-rug',
+    name: 'Crunch met platte rug',
+    goal: 'Buikspieren aanspannen zonder de onderrug te belasten.',
+    cue: 'Alleen je schouders komen omhoog. Je onderrug blijft plat op de mat.',
+    sets: 2,
+    reps: 10,
+    durationSec: null,
+    enabled: true,
+    isCustom: false,
+    level: 'basis',
+    category: 'kracht',
+  },
+  {
+    id: 'heupbeweging-platte-rug',
+    name: 'Heupbewegingen met platte rug',
+    goal: 'Mobiliteit van het bekken met behoud van een plat lager rugje.',
+    cue: 'Beweeg rustig vanuit je heupen, je onderrug blijft de hele tijd plat.',
+    sets: 2,
+    reps: 10,
+    durationSec: null,
+    enabled: true,
+    isCustom: false,
+    level: 'basis',
+    category: 'mobiliteit',
+  },
+  {
+    id: 'kat-beweging',
+    name: 'Kat-beweging',
+    goal: 'Zachte mobiliteit voor de hele rug.',
+    cue: 'Maak je rug bol, zoals een kat. Beweeg rustig, zonder door te hangen.',
+    sets: 1,
+    reps: 10,
+    durationSec: null,
+    enabled: true,
+    isCustom: false,
+    level: 'basis',
+    category: 'mobiliteit',
+  },
+  {
+    id: 'flexie-stretch',
+    name: 'Flexie-stretch',
+    goal: 'Zachtjes uitrekken van de onderrug in gebogen positie.',
+    cue: 'Rug blijft plat of bol, nooit hol. Adem rustig door tijdens het rekken.',
+    sets: 2,
+    reps: null,
+    durationSec: 30,
+    enabled: true,
+    isCustom: false,
+    level: 'basis',
+    category: 'stretch',
+  },
+  {
+    id: 'liggende-stretch-been-over-heup',
+    name: 'Liggende stretch: been over heup',
+    goal: 'Ontspannen van bil- en onderrugspieren.',
+    cue: 'Leg je linkerbeen over je rechterheup, laat je onderrug ontspannen liggen.',
+    sets: 2,
+    reps: null,
+    durationSec: 30,
+    enabled: true,
+    isCustom: false,
+    level: 'basis',
+    category: 'stretch',
+  },
+]
+
+export const AVOID_LIST: string[] = [
+  'Plankhouding (plank)',
+  'Achterover buigen / hollen van de rug',
+  'Extensie-oefeningen (rug strekken/hol maken)',
+  'Alles waarbij je rug uit een platte of bolle stand kan schieten',
+]
