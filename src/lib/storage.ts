@@ -3,6 +3,17 @@ import { DEFAULT_EXERCISES } from '../data/defaultExercises'
 
 const STORAGE_KEY = 'rugmaatje_data_v1'
 
+/**
+ * Schema-versie van de opgeslagen data. Verhoog dit bij elke structurele
+ * wijziging aan AppData en voeg een stap toe aan MIGRATIONS, zodat bestaande
+ * gebruikers hun gegevens nooit kwijtraken bij een app-update.
+ *
+ * Verwijder NOOIT een bestaande migratiestap: ook gebruikers die al twee jaar
+ * niet hebben geüpdatet moeten in één keer kunnen doorschakelen naar de
+ * huidige versie.
+ */
+export const SCHEMA_VERSION = 1
+
 export const DEFAULT_SETTINGS: Settings = {
   disclaimerSeenAt: null,
   painThresholdGroenMax: 1,
@@ -25,10 +36,14 @@ export const DEFAULT_STREAK: StreakData = {
   badgesEarned: [],
 }
 
+function cloneDefaultExercises() {
+  return DEFAULT_EXERCISES.map((e) => ({ ...e }))
+}
+
 function defaultData(): AppData {
   return {
     checkIns: [],
-    exercises: DEFAULT_EXERCISES,
+    exercises: cloneDefaultExercises(),
     cyclingLogs: [],
     restLogs: [],
     exerciseCompletions: [],
@@ -37,21 +52,60 @@ function defaultData(): AppData {
   }
 }
 
+/**
+ * Vult ontbrekende/onbekende velden defensief aan met defaults. Dit vangt
+ * zowel "kale" oudere data op als een onvolledig/handmatig bewerkt
+ * back-upbestand, zodat we nooit crashen op ontbrekende velden.
+ */
+function normalizeAppData(parsed: Partial<AppData> | null | undefined): AppData {
+  const p = parsed ?? {}
+  return {
+    checkIns: p.checkIns ?? [],
+    exercises: p.exercises && p.exercises.length > 0 ? p.exercises : cloneDefaultExercises(),
+    cyclingLogs: p.cyclingLogs ?? [],
+    restLogs: p.restLogs ?? [],
+    exerciseCompletions: p.exerciseCompletions ?? [],
+    settings: {
+      ...DEFAULT_SETTINGS,
+      ...p.settings,
+      volleyball: { ...DEFAULT_SETTINGS.volleyball, ...p.settings?.volleyball },
+      reminder: { ...DEFAULT_SETTINGS.reminder, ...p.settings?.reminder },
+    },
+    streak: { ...DEFAULT_STREAK, ...p.streak },
+  }
+}
+
+/**
+ * Eén migratiestap per versienummer: MIGRATIONS[0] tilt data van v0 naar v1,
+ * MIGRATIONS[1] zou v1 naar v2 tillen, enz. Nieuwe stappen hier toevoegen,
+ * nooit bestaande stappen wijzigen of verwijderen.
+ */
+const MIGRATIONS: Record<number, (data: unknown) => unknown> = {
+  // v0 = "kaal" AppData-object van vóór schema-versionering (geen envelope).
+  0: (data) => normalizeAppData(data as Partial<AppData>),
+}
+
+function migrate(data: unknown, fromVersion: number): AppData {
+  let current = data
+  for (let v = fromVersion; v < SCHEMA_VERSION; v++) {
+    const step = MIGRATIONS[v]
+    if (step) current = step(current)
+  }
+  return normalizeAppData(current as Partial<AppData>)
+}
+
 export function loadData(): AppData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return defaultData()
-    const parsed = JSON.parse(raw) as Partial<AppData>
-    // Defensief samenvoegen zodat nieuwe velden bij updates niet ontbreken.
-    return {
-      checkIns: parsed.checkIns ?? [],
-      exercises: parsed.exercises && parsed.exercises.length > 0 ? parsed.exercises : DEFAULT_EXERCISES,
-      cyclingLogs: parsed.cyclingLogs ?? [],
-      restLogs: parsed.restLogs ?? [],
-      exerciseCompletions: parsed.exerciseCompletions ?? [],
-      settings: { ...DEFAULT_SETTINGS, ...parsed.settings, volleyball: { ...DEFAULT_SETTINGS.volleyball, ...parsed.settings?.volleyball }, reminder: { ...DEFAULT_SETTINGS.reminder, ...parsed.settings?.reminder } },
-      streak: { ...DEFAULT_STREAK, ...parsed.streak },
+    const parsed = JSON.parse(raw) as unknown
+
+    if (parsed && typeof parsed === 'object' && typeof (parsed as { schemaVersion?: unknown }).schemaVersion === 'number' && 'data' in parsed) {
+      const envelope = parsed as { schemaVersion: number; data: unknown }
+      return migrate(envelope.data, envelope.schemaVersion)
     }
+    // Geen envelope herkend -> data van vóór schema-versionering (v0).
+    return migrate(parsed, 0)
   } catch (e) {
     console.error('RugMaatje: kon data niet laden, start met lege data.', e)
     return defaultData()
@@ -59,7 +113,8 @@ export function loadData(): AppData {
 }
 
 export function saveData(data: AppData): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+  const envelope = { schemaVersion: SCHEMA_VERSION, data }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(envelope))
 }
 
 export function resetAllData(): AppData {
@@ -67,6 +122,51 @@ export function resetAllData(): AppData {
   const fresh = defaultData()
   saveData(fresh)
   return fresh
+}
+
+// --- Back-up: volledige export/import als JSON -----------------------------
+// Zodat gebruikers hun gegevens kunnen bewaren of overzetten naar een nieuw
+// toestel, zonder account en zonder server: gewoon een bestand dat je zelf
+// bewaart (bijv. in Bestanden/iCloud) en later weer kunt inladen.
+
+export interface BackupFile {
+  app: 'rugmaatje'
+  schemaVersion: number
+  exportedAt: number
+  data: AppData
+}
+
+export function createBackup(data: AppData): BackupFile {
+  return { app: 'rugmaatje', schemaVersion: SCHEMA_VERSION, exportedAt: Date.now(), data }
+}
+
+export function exportBackupJson(data: AppData): string {
+  return JSON.stringify(createBackup(data), null, 2)
+}
+
+export class BackupParseError extends Error {}
+
+export function parseBackupJson(json: string): AppData {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(json)
+  } catch {
+    throw new BackupParseError('Dit bestand is geen geldige JSON en kan niet gelezen worden.')
+  }
+  if (!parsed || typeof parsed !== 'object') {
+    throw new BackupParseError('Dit bestand bevat geen herkenbare RugMaatje-gegevens.')
+  }
+  const obj = parsed as Record<string, unknown>
+
+  // Envelope-back-upformaat (met app/schemaVersion/data).
+  if ('data' in obj && typeof obj.schemaVersion === 'number') {
+    return migrate(obj.data, obj.schemaVersion)
+  }
+  // Ook een "kaal" AppData-object accepteren (bijv. handmatig bewerkt).
+  if ('checkIns' in obj && 'exercises' in obj) {
+    return migrate(obj, 0)
+  }
+  throw new BackupParseError('Dit bestand bevat geen herkenbare RugMaatje-gegevens.')
 }
 
 export function exportAsCsv(data: AppData): string {

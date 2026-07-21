@@ -12,7 +12,21 @@ import { CyclingRestCard } from '../components/CyclingRestCard'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { CelebrationToast } from '../components/CelebrationToast'
 import { BadgeEarnedModal } from '../components/BadgeEarnedModal'
-import type { StoplightLevel } from '../types'
+import type { Exercise, StoplightLevel } from '../types'
+
+function formatDose(ex: Pick<Exercise, 'sets' | 'reps' | 'durationSec'>): string {
+  if (ex.reps != null) return `${ex.sets} x ${ex.reps}`
+  if (ex.durationSec != null) return `${ex.sets} x ${ex.durationSec} sec`
+  return `${ex.sets} set(s)`
+}
+
+function bumpedDose(ex: Exercise): string {
+  return formatDose({
+    sets: ex.sets,
+    reps: ex.reps ? Math.max(ex.reps, Math.round(ex.reps * 1.1)) : ex.reps,
+    durationSec: ex.durationSec ? Math.max(ex.durationSec, Math.round(ex.durationSec * 1.1)) : ex.durationSec,
+  })
+}
 
 const LEVEL_STYLES: Record<Exclude<StoplightLevel, 'rode_vlag'>, { bg: string; text: string; label: string; emoji: string }> = {
   groen: { bg: 'bg-stoplicht-groen', text: 'text-stoplicht-groen-tekst', label: 'Groen: volledig programma', emoji: '🟢' },
@@ -27,7 +41,7 @@ export function TodayScreen() {
     todayExerciseDone,
     todayRestLogged,
     addExerciseCompletion,
-    applyProgressionBump,
+    applyProgressionForExercise,
     lastEarnedBadges,
     clearLastEarnedBadges,
   } = useAppData()
@@ -46,6 +60,14 @@ export function TodayScreen() {
   const progressionEligible = useMemo(
     () => stoplight?.level === 'groen' && isProgressionEligible(data.checkIns, data.settings, todayKey()),
     [stoplight, data.checkIns, data.settings],
+  )
+
+  // Progressie wordt per oefening aangeboden (nooit als één blanket bump over
+  // alles), zodat je zelf kunt kiezen welke oefening al klaar is voor een
+  // volgende stap en welke nog even op hetzelfde niveau mag blijven.
+  const basisExercises = useMemo(
+    () => data.exercises.filter((e) => e.enabled && e.level === 'basis'),
+    [data.exercises],
   )
 
   if (!todayCheckIn || !stoplight) return null
@@ -118,25 +140,43 @@ export function TodayScreen() {
         ))}
       </Card>
 
-      {progressionEligible && showProgressionOffer && !overrideFullProgram && (
+      {progressionEligible && showProgressionOffer && !overrideFullProgram && basisExercises.length > 0 && (
         <Card className="mb-4 border-2 border-butter-200 bg-butter-50">
           <p className="mb-2 font-extrabold text-[#8a6a1a]">Je houdt dit heel goed vol! 🌟</p>
           <p className="mb-3 text-sm text-[#8a6a1a]">
-            De afgelopen week ging het vaak groen. Je fysio-opbouw mag een klein stapje verder
-            (ongeveer 10% meer volume). Helemaal jouw keuze.
+            De afgelopen week ging het vaak groen. Kies zelf per oefening of je een klein stapje
+            verder wilt (ongeveer 10% meer volume) — helemaal jouw keuze, per oefening apart.
           </p>
-          <div className="flex gap-2">
-            <SecondaryButton onClick={() => setShowProgressionOffer(false)}>Niet nu</SecondaryButton>
-            <PrimaryButton
-              onClick={() => {
-                applyProgressionBump()
-                setShowProgressionOffer(false)
-                setCelebration('Volume rustig verhoogd met 10%. Fijn opgebouwd! 🌟')
-              }}
-            >
-              Toepassen
-            </PrimaryButton>
+          <div className="space-y-2">
+            {basisExercises.map((ex) => (
+              <div
+                key={ex.id}
+                className="flex items-center justify-between gap-3 rounded-2xl border-2 border-butter-100 bg-white/70 p-3"
+              >
+                <div>
+                  <p className="text-sm font-bold text-[#4a4453]">{ex.name}</p>
+                  <p className="text-xs text-[#8a7f96]">
+                    {formatDose(ex)} → {bumpedDose(ex)}
+                  </p>
+                </div>
+                <SecondaryButton
+                  className="w-auto px-4 py-2 text-sm"
+                  onClick={() => {
+                    applyProgressionForExercise(ex.id)
+                    setCelebration(`${ex.name}: volume rustig verhoogd. Fijn opgebouwd! 🌟`)
+                  }}
+                >
+                  Toepassen
+                </SecondaryButton>
+              </div>
+            ))}
           </div>
+          <button
+            onClick={() => setShowProgressionOffer(false)}
+            className="mt-3 text-xs font-bold text-[#9d93a8] underline"
+          >
+            Niet nu, voor geen van deze oefeningen
+          </button>
         </Card>
       )}
 

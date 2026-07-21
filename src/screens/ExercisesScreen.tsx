@@ -80,11 +80,12 @@ export function ExercisesScreen() {
           <Card key={ex.id}>
             <div className="flex items-start justify-between gap-2">
               <div>
-                <div className="mb-1 flex items-center gap-2">
+                <div className="mb-1 flex flex-wrap items-center gap-2">
                   <p className="font-extrabold text-[#4a4453]">{ex.name}</p>
                   <Pill tone={ex.category === 'kracht' ? 'blush' : ex.category === 'stretch' ? 'lavender' : 'mint'}>
                     {EXERCISE_CATEGORY_LABELS[ex.category]}
                   </Pill>
+                  {ex.level === 'opgebouwd' && <Pill tone="peach">opgebouwd 🌟</Pill>}
                 </div>
                 <p className="text-sm text-[#7a7285]">{ex.goal}</p>
                 <p className="mt-1 text-xs italic text-[#9d93a8]">{ex.cue}</p>

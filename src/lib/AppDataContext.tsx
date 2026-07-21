@@ -25,8 +25,9 @@ interface AppDataContextValue {
   addExercise: (exercise: Omit<Exercise, 'id' | 'isCustom'>) => void
   removeExercise: (id: string) => void
   updateSettings: (patch: Partial<Settings>) => void
-  applyProgressionBump: () => void
+  applyProgressionForExercise: (exerciseId: string) => void
   resetData: () => void
+  importData: (data: AppData) => void
   todayCheckIn: CheckIn | null
   todayExerciseDone: boolean
   todayRestLogged: boolean
@@ -124,11 +125,13 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     setData((current) => ({ ...current, settings: { ...current.settings, ...patch } }))
   }, [])
 
-  const applyProgressionBump = useCallback(() => {
+  // Progressie is bewust PER OEFENING, nooit een blanket bump over alles: zo
+  // kan iemand bijv. wel verder met de crunch maar de stretch gelijk houden.
+  const applyProgressionForExercise = useCallback<AppDataContextValue['applyProgressionForExercise']>((exerciseId) => {
     setData((current) => ({
       ...current,
       exercises: current.exercises.map((e) => {
-        if (!e.enabled) return e
+        if (e.id !== exerciseId || !e.enabled) return e
         return {
           ...e,
           reps: e.reps ? Math.max(e.reps, Math.round(e.reps * 1.1)) : e.reps,
@@ -143,6 +146,17 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     const fresh = resetAllData()
     isFirstRender.current = true
     setData(fresh)
+    setLastEarnedBadges([])
+  }, [])
+
+  // Data herstellen vanuit een back-up: vervangt alle huidige data. Net als
+  // bij resetData slaan we de "nieuwe badges"-check op deze ene overgang over
+  // (isFirstRender-guard), zodat je niet ineens een stapel badge-popups krijgt
+  // voor prestaties die al in het verleden zijn behaald.
+  const importData = useCallback<AppDataContextValue['importData']>((restored) => {
+    saveData(restored)
+    isFirstRender.current = true
+    setData(restored)
     setLastEarnedBadges([])
   }, [])
 
@@ -173,8 +187,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     addExercise,
     removeExercise,
     updateSettings,
-    applyProgressionBump,
+    applyProgressionForExercise,
     resetData,
+    importData,
     todayCheckIn,
     todayExerciseDone,
     todayRestLogged,

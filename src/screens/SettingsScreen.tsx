@@ -1,16 +1,44 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useAppData } from '../lib/AppDataContext'
 import { Card, PrimaryButton, SecondaryButton, SectionTitle } from '../components/ui'
 import { DisclaimerContent } from '../components/DisclaimerModal'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { requestNotificationPermission } from '../lib/notifications'
+import { BackupParseError, exportBackupJson, parseBackupJson } from '../lib/storage'
+import { todayKey } from '../lib/dates'
+import type { AppData } from '../types'
 
 export function SettingsScreen() {
-  const { data, updateSettings, resetData } = useAppData()
+  const { data, updateSettings, resetData, importData } = useAppData()
   const [showReset, setShowReset] = useState(false)
   const [showDisclaimer, setShowDisclaimer] = useState(false)
+  const [restoreError, setRestoreError] = useState<string | null>(null)
+  const [pendingRestore, setPendingRestore] = useState<AppData | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { settings } = data
+
+  const handleBackupDownload = () => {
+    const json = exportBackupJson(data)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `rugmaatje-backup-${todayKey()}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleFileChosen = async (file: File) => {
+    setRestoreError(null)
+    try {
+      const text = await file.text()
+      const restored = parseBackupJson(text)
+      setPendingRestore(restored)
+    } catch (e) {
+      setRestoreError(e instanceof BackupParseError ? e.message : 'Kon dit bestand niet lezen als RugMaatje-back-up.')
+    }
+  }
 
   return (
     <div className="mx-auto w-full max-w-md flex-1 px-5 pb-28 pt-6">
@@ -103,8 +131,42 @@ export function SettingsScreen() {
       <SectionTitle>Gegevens</SectionTitle>
       <Card className="mb-5">
         <p className="mb-3 text-sm text-[#7a7285]">
-          Al je gegevens staan alleen lokaal op dit toestel. Reset wist alles definitief.
+          Al je gegevens staan alleen lokaal op dit toestel. Maak regelmatig een back-up, zeker
+          voor je van toestel wisselt — reset wist alles definitief.
         </p>
+
+        <p className="mb-1 text-sm font-bold text-[#4a4453]">Back-up maken</p>
+        <p className="mb-2 text-xs text-[#9d93a8]">
+          Downloadt al je gegevens als één bestand (.json), dat je zelf kunt bewaren (bijv. in
+          Bestanden/iCloud) om later terug te zetten.
+        </p>
+        <SecondaryButton onClick={handleBackupDownload} className="mb-4">
+          Back-up downloaden
+        </SecondaryButton>
+
+        <p className="mb-1 text-sm font-bold text-[#4a4453]">Back-up herstellen</p>
+        <p className="mb-2 text-xs text-[#9d93a8]">
+          Let op: dit overschrijft je huidige gegevens op dit toestel met de inhoud van het
+          back-upbestand.
+        </p>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) handleFileChosen(file)
+            e.target.value = ''
+          }}
+        />
+        <SecondaryButton onClick={() => fileInputRef.current?.click()} className="mb-2">
+          Kies back-upbestand…
+        </SecondaryButton>
+        {restoreError && <p className="mb-2 text-xs font-bold text-blush-300">{restoreError}</p>}
+
+        <div className="my-4 h-px bg-[#ece7ef]" />
+
         <SecondaryButton onClick={() => setShowReset(true)}>Alles wissen</SecondaryButton>
       </Card>
 
@@ -130,6 +192,20 @@ export function SettingsScreen() {
           onConfirm={() => {
             resetData()
             setShowReset(false)
+          }}
+        />
+      )}
+
+      {pendingRestore && (
+        <ConfirmDialog
+          title="Back-up terugzetten?"
+          message="Dit overschrijft al je huidige gegevens op dit toestel met de inhoud van dit back-upbestand. Dit kan niet ongedaan gemaakt worden."
+          confirmLabel="Ja, terugzetten"
+          cancelLabel="Nee, annuleren"
+          onCancel={() => setPendingRestore(null)}
+          onConfirm={() => {
+            importData(pendingRestore)
+            setPendingRestore(null)
           }}
         />
       )}
