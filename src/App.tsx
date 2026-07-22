@@ -7,6 +7,7 @@ import { ExercisesScreen } from './screens/ExercisesScreen'
 import { VolleyballScreen } from './screens/VolleyballScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { BottomNav, type TabKey } from './components/BottomNav'
+import { InstallBanner } from './components/InstallBanner'
 import { checkAndFireReminder } from './lib/notifications'
 
 // Historie-scherm bevat recharts (relatief zware library) en wordt daarom
@@ -35,6 +36,7 @@ function AppShell() {
 
   return (
     <div className="flex min-h-svh flex-1 flex-col">
+      <InstallBanner />
       <div className="flex-1">
         {tab === 'vandaag' && <TodayScreen />}
         {tab === 'oefeningen' && <ExercisesScreen />}

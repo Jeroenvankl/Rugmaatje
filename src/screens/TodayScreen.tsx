@@ -30,7 +30,7 @@ function bumpedDose(ex: Exercise): string {
 }
 
 const LEVEL_STYLES: Record<Exclude<StoplightLevel, 'rode_vlag'>, { bg: string; text: string; label: string; emoji: string }> = {
-  groen: { bg: 'bg-stoplicht-groen', text: 'text-stoplicht-groen-tekst', label: 'Groen: volledig programma', emoji: '🟢' },
+  groen: { bg: 'bg-stoplicht-groen', text: 'text-stoplicht-groen-tekst', label: 'Groen: het gaat goed', emoji: '🟢' },
   oranje: { bg: 'bg-stoplicht-amber', text: 'text-stoplicht-amber-tekst', label: 'Amber: rustig aan', emoji: '🟡' },
   rood: { bg: 'bg-stoplicht-rood', text: 'text-stoplicht-rood-tekst', label: 'Rood: rustdag', emoji: '🌷' },
 }
@@ -80,9 +80,11 @@ export function TodayScreen() {
   }
 
   const style = LEVEL_STYLES[stoplight.level]
-  const baseProgram = getTodayProgram(stoplight.level, data.exercises, data.settings.showOptionalStretchOnRestDay)
+  const baseProgram = getTodayProgram(stoplight.level, data.exercises, todayCheckIn.painScore, data.settings, todayKey())
+  // "Toch alles doen" toont echt de volledige bibliotheek, zonder de
+  // dagelijkse cap/willekeur — dat is precies het doel van deze bewuste keuze.
   const program = overrideFullProgram
-    ? { ...getTodayProgram('groen', data.exercises), intro: 'Je eigen keuze: volledige set doen.' }
+    ? { exercises: data.exercises.filter((e) => e.enabled), optional: false, intro: 'Je eigen keuze: volledige set doen.' }
     : baseProgram
 
   const toggleExercise = (id: string) => {
@@ -99,7 +101,14 @@ export function TodayScreen() {
     setCelebration('Dagoefeningen afgerond, wat goed dat je er weer was! 🎉')
   }
 
-  const requestOverride = () => setShowOverrideConfirm(true)
+  // Bij groen is er geen medisch advies om te overschrijven (alleen minder
+  // variatie tonen), dus daar meteen de volledige bibliotheek tonen zonder
+  // waarschuwingsdialoog. Bij oranje/rood overschrijf je wél het rustadvies,
+  // dus daar blijft de bevestigingsvraag staan.
+  const requestOverride = () => {
+    if (stoplight.level === 'groen') setOverrideFullProgram(true)
+    else setShowOverrideConfirm(true)
+  }
 
   return (
     <div className="mx-auto w-full max-w-md flex-1 px-5 pb-28 pt-6">
@@ -231,9 +240,9 @@ export function TodayScreen() {
 
           <ExerciseChecklist exercises={program.exercises} checked={checked} onToggle={toggleExercise} />
 
-          {!overrideFullProgram && stoplight.level !== 'groen' && (
+          {!overrideFullProgram && (
             <button onClick={requestOverride} className="mt-4 text-xs font-bold text-[#9d93a8] underline">
-              Toch de volledige set doen vandaag?
+              {stoplight.level === 'groen' ? 'Liever de volledige bibliotheek zien?' : 'Toch de volledige set doen vandaag?'}
             </button>
           )}
 

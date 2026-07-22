@@ -3,20 +3,9 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { useAppData } from '../lib/AppDataContext'
 import { Card, Pill, SecondaryButton } from '../components/ui'
 import { exportAsCsv, exportAsText } from '../lib/storage'
+import { shareOrDownloadFile } from '../lib/share'
 import { formatShortDate, lastNDays } from '../lib/dates'
 import { PAIN_LOCATION_LABELS, RADIATING_LABELS } from '../types'
-
-function downloadFile(content: string, filename: string, mime: string) {
-  const blob = new Blob([content], { type: mime })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
-}
 
 export function HistoryScreen() {
   const { data } = useAppData()
@@ -47,8 +36,8 @@ export function HistoryScreen() {
     [data.checkIns],
   )
 
-  const handleExportText = () => downloadFile(exportAsText(data), 'rugmaatje-overzicht.txt', 'text/plain')
-  const handleExportCsv = () => downloadFile(exportAsCsv(data), 'rugmaatje-overzicht.csv', 'text/csv')
+  const handleExportText = () => shareOrDownloadFile(exportAsText(data), 'rugmaatje-overzicht.txt', 'text/plain')
+  const handleExportCsv = () => shareOrDownloadFile(exportAsCsv(data), 'rugmaatje-overzicht.csv', 'text/csv')
 
   return (
     <div className="mx-auto w-full max-w-md flex-1 px-5 pb-28 pt-6">

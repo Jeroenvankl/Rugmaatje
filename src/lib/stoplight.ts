@@ -52,7 +52,7 @@ export function evaluateStoplight(
     reasons.push('Alleen zachte mobiliteit en stretches vandaag, geen progressie.')
   } else if (checkIn.painScore <= groenMax && (checkIn.radiating === 'geen' || checkIn.radiating === 'licht')) {
     level = 'groen'
-    reasons.push('Je mag je volledige oefenset van vandaag doen.')
+    reasons.push('Je mag vandaag flink wat oefeningen doen, gevarieerd gekozen.')
   } else {
     // Randgeval: lage pijnscore maar toch niet "geen/licht" (zou al rode vlag zijn afgehandeld)
     level = 'oranje'

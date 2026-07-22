@@ -6,6 +6,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { requestNotificationPermission } from '../lib/notifications'
 import { BackupParseError, exportBackupJson, parseBackupJson } from '../lib/storage'
 import { buildPhysioReport, formatPhysioReportText } from '../lib/report'
+import { shareOrDownloadFile } from '../lib/share'
 import { todayKey } from '../lib/dates'
 import type { AppData } from '../types'
 
@@ -19,27 +20,15 @@ export function SettingsScreen() {
 
   const { settings } = data
 
-  const handleBackupDownload = () => {
+  const handleBackupShare = () => {
     const json = exportBackupJson(data)
-    const blob = new Blob([json], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `rugmaatje-backup-${todayKey()}.json`
-    a.click()
-    URL.revokeObjectURL(url)
+    shareOrDownloadFile(json, `rugmaatje-backup-${todayKey()}.json`, 'application/json')
   }
 
-  const handlePhysioReportDownload = () => {
+  const handlePhysioReportShare = () => {
     const report = buildPhysioReport(data, 28)
     const text = formatPhysioReportText(report)
-    const blob = new Blob([text], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `rugmaatje-fysio-overzicht-${todayKey()}.txt`
-    a.click()
-    URL.revokeObjectURL(url)
+    shareOrDownloadFile(text, `rugmaatje-fysio-overzicht-${todayKey()}.txt`, 'text/plain')
   }
 
   const handleFileChosen = async (file: File) => {
@@ -167,22 +156,23 @@ export function SettingsScreen() {
 
         <p className="mb-1 text-sm font-bold text-[#4a4453]">Overzicht voor je fysiotherapeut</p>
         <p className="mb-2 text-xs text-[#9d93a8]">
-          Downloadt een leesbare samenvatting van de laatste 4 weken (gemiddelde pijn, stoplicht-verdeling,
-          streak en bijzondere momenten) die je kunt laten zien of mailen aan je fysiotherapeut.
+          Een leesbare samenvatting van de laatste 4 weken (gemiddelde pijn, stoplicht-verdeling,
+          streak en bijzondere momenten). Op je iPhone kun je dit direct delen (bijv. via Berichten,
+          Mail of AirDrop); anders wordt het gedownload.
         </p>
-        <SecondaryButton onClick={handlePhysioReportDownload} className="mb-4">
-          Fysio-overzicht downloaden
+        <SecondaryButton onClick={handlePhysioReportShare} className="mb-4">
+          Fysio-overzicht delen
         </SecondaryButton>
 
         <div className="my-4 h-px bg-[#ece7ef]" />
 
         <p className="mb-1 text-sm font-bold text-[#4a4453]">Back-up maken</p>
         <p className="mb-2 text-xs text-[#9d93a8]">
-          Downloadt al je gegevens als één bestand (.json), dat je zelf kunt bewaren (bijv. in
-          Bestanden/iCloud) om later terug te zetten.
+          Al je gegevens als één bestand (.json), dat je zelf kunt bewaren (bijv. in Bestanden/iCloud)
+          om later terug te zetten. Op je iPhone kun je dit direct delen naar de Bestanden-app.
         </p>
-        <SecondaryButton onClick={handleBackupDownload} className="mb-4">
-          Back-up downloaden
+        <SecondaryButton onClick={handleBackupShare} className="mb-4">
+          Back-up delen
         </SecondaryButton>
 
         <p className="mb-1 text-sm font-bold text-[#4a4453]">Back-up herstellen</p>
