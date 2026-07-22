@@ -6,7 +6,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { requestNotificationPermission } from '../lib/notifications'
 import { BackupParseError, exportBackupJson, parseBackupJson } from '../lib/storage'
 import { buildPhysioReport, formatPhysioReportText } from '../lib/report'
-import { shareOrDownloadFile } from '../lib/share'
+import { shareOrDownloadBlob, shareOrDownloadFile } from '../lib/share'
 import { playChime, primeAudio } from '../lib/sound'
 import { todayKey, formatShortDate } from '../lib/dates'
 import { TIMER_SOUND_LABELS, type AppData, type TimerSound } from '../types'
@@ -41,6 +41,13 @@ export function SettingsScreen() {
     const report = buildPhysioReport(data, 28)
     const text = formatPhysioReportText(report)
     shareOrDownloadFile(text, `rugmaatje-fysio-overzicht-${todayKey()}.txt`, 'text/plain')
+  }
+
+  const handlePhysioReportPdf = async () => {
+    // jsPDF is relatief zwaar en wordt daarom pas hier dynamisch geladen.
+    const { buildPhysioReportPdf } = await import('../lib/pdf')
+    const blob = buildPhysioReportPdf(data, 28)
+    await shareOrDownloadBlob(blob, `rugmaatje-fysio-overzicht-${todayKey()}.pdf`)
   }
 
   const handleFileChosen = async (file: File) => {
@@ -87,6 +94,25 @@ export function SettingsScreen() {
           className="w-full text-stoplicht-amber"
         />
         <p className="mt-2 text-xs text-[#9d93a8]">Daarboven geldt automatisch rood.</p>
+      </Card>
+
+      <SectionTitle>Weekdoel</SectionTitle>
+      <Card className="mb-5">
+        <label className="mb-1 block text-sm font-bold text-[#7a7285]">
+          Actieve dagen per week: {settings.weeklyMovementGoal}
+        </label>
+        <input
+          type="range"
+          min={1}
+          max={7}
+          value={settings.weeklyMovementGoal}
+          onChange={(e) => updateSettings({ weeklyMovementGoal: Number(e.target.value) })}
+          className="w-full text-lavender-300"
+        />
+        <p className="mt-2 text-xs text-[#9d93a8]">
+          Een dag telt als actief zodra je oefent of fietst. Rustdagen tellen niet mee maar breken ook
+          niets — kies een doel dat haalbaar voelt, ook op drukke weken.
+        </p>
       </Card>
 
       <SectionTitle>Rustdag-gedrag</SectionTitle>
@@ -240,8 +266,11 @@ export function SettingsScreen() {
           streak en bijzondere momenten). Op je iPhone kun je dit direct delen (bijv. via Berichten,
           Mail of AirDrop); anders wordt het gedownload.
         </p>
-        <SecondaryButton onClick={handlePhysioReportShare} className="mb-4">
-          Fysio-overzicht delen
+        <SecondaryButton onClick={handlePhysioReportShare} className="mb-2">
+          Fysio-overzicht delen (tekst)
+        </SecondaryButton>
+        <SecondaryButton onClick={handlePhysioReportPdf} className="mb-4">
+          Fysio-overzicht delen (PDF)
         </SecondaryButton>
 
         <div className="my-4 h-px bg-[#ece7ef]" />

@@ -140,6 +140,26 @@ input[type='range']::-moz-range-thumb {
   cursor: pointer;
 }
 
+/* Mascotte (rode panda): zachte, levendige micro-animaties. transform-box:
+   fill-box zodat transform-origin binnen de SVG-elementen klopt. */
+@keyframes mascot-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2.2px); }
+}
+@keyframes mascot-tail {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-9deg); }
+}
+@keyframes mascot-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  96% { transform: scaleY(0.1); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .mascot-bob { animation: mascot-bob 3.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+  .mascot-tail { animation: mascot-tail 3.8s ease-in-out infinite; transform-box: fill-box; transform-origin: 80% 90%; }
+  .mascot-eyes { animation: mascot-blink 4.5s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+}
+
 @keyframes fade-slide-up {
   from {
     opacity: 0;

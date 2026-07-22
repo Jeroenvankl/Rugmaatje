@@ -14,6 +14,10 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { CelebrationToast } from '../components/CelebrationToast'
 import { BadgeEarnedModal } from '../components/BadgeEarnedModal'
 import { RetroactiveCheckInModal } from '../components/RetroactiveCheckInModal'
+import { ExerciseFeedbackModal } from '../components/ExerciseFeedbackModal'
+import { Mascot, type MascotMood } from '../components/Mascot'
+import { LevelWeekCard } from '../components/LevelWeekCard'
+import { preferenceWeights } from '../lib/preferences'
 import type { Exercise, StoplightLevel } from '../types'
 
 function formatDose(ex: Pick<Exercise, 'sets' | 'reps' | 'durationSec'>): string {
@@ -55,6 +59,7 @@ export function TodayScreen() {
   const [celebration, setCelebration] = useState<string | null>(null)
   const [showProgressionOffer, setShowProgressionOffer] = useState(true)
   const [retroactiveDate, setRetroactiveDate] = useState<string | null>(null)
+  const [feedbackExercises, setFeedbackExercises] = useState<Exercise[] | null>(null)
 
   const stoplight = useMemo(() => {
     if (!todayCheckIn) return null
@@ -89,7 +94,14 @@ export function TodayScreen() {
   }
 
   const style = LEVEL_STYLES[stoplight.level]
-  const baseProgram = getTodayProgram(stoplight.level, data.exercises, todayCheckIn.painScore, data.settings, todayKey())
+  const baseProgram = getTodayProgram(
+    stoplight.level,
+    data.exercises,
+    todayCheckIn.painScore,
+    data.settings,
+    todayKey(),
+    preferenceWeights(data),
+  )
   // "Toch alles doen" toont echt de volledige bibliotheek, zonder de
   // dagelijkse cap/willekeur — dat is precies het doel van deze bewuste keuze.
   const program = overrideFullProgram
@@ -106,9 +118,22 @@ export function TodayScreen() {
   }
 
   const finishExercises = () => {
+    const doneExercises = program.exercises.filter((e) => checked.has(e.id))
     addExerciseCompletion(Array.from(checked), stoplight.level)
     setCelebration('Dagoefeningen afgerond, wat goed dat je er weer was! 🎉')
+    if (doneExercises.length > 0) setFeedbackExercises(doneExercises)
   }
+
+  // De mascotte leeft mee met de dag: trots als je klaar bent, anders passend
+  // bij het stoplicht (blij bij groen, rustig bij oranje, zorgzaam bij rood).
+  const done = todayExerciseDone || todayRestLogged
+  const mascot: { mood: MascotMood; message: string } = done
+    ? { mood: 'trots', message: 'Top, je bent er vandaag weer geweest. Trots op je!' }
+    : stoplight.level === 'groen'
+      ? { mood: 'blij', message: 'Fijne dag om lekker te bewegen. Ik help je mee!' }
+      : stoplight.level === 'oranje'
+        ? { mood: 'rustig', message: 'Rustig aan vandaag — zachte oefeningen zijn precies goed.' }
+        : { mood: 'zorgzaam', message: 'Vandaag vooral rust. Goed naar je lijf luisteren is ook winst.' }
 
   // Bij groen is er geen medisch advies om te overschrijven (alleen minder
   // variatie tonen), dus daar meteen de volledige bibliotheek tonen zonder
@@ -155,6 +180,12 @@ export function TodayScreen() {
         </p>
       )}
 
+      <Card className="mb-4 bg-lavender-50">
+        <Mascot mood={mascot.mood} message={mascot.message} />
+      </Card>
+
+      <LevelWeekCard />
+
       <Card className={`mb-4 ${style.bg}/40`}>
         <div className="flex items-center gap-2">
           <span className="text-2xl">{style.emoji}</span>
@@ -175,6 +206,10 @@ export function TodayScreen() {
             setCelebration('Gemiste dag ingevuld, je streak loopt weer door! 🔥')
           }}
         />
+      )}
+
+      {feedbackExercises && (
+        <ExerciseFeedbackModal exercises={feedbackExercises} onClose={() => setFeedbackExercises(null)} />
       )}
 
       {missedCheckInDates.length > 0 && (

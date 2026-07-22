@@ -24,6 +24,7 @@ function makeAppData(overrides: Partial<AppData> = {}): AppData {
     cyclingLogs: [],
     restLogs: [],
     exerciseCompletions: [],
+    exerciseFeedback: [],
     physioNotes: [],
     settings: DEFAULT_SETTINGS,
     streak: DEFAULT_STREAK,

@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useAppData } from '../lib/AppDataContext'
 import { Card, GhostButton, Pill, PrimaryButton, SecondaryButton } from '../components/ui'
 import { AVOID_LIST } from '../data/defaultExercises'
+import { rankPreferences } from '../lib/preferences'
 import { EXERCISE_CATEGORY_LABELS, type Exercise, type ExerciseCategory } from '../types'
 
 const emptyForm = {
@@ -68,12 +69,48 @@ export function ExercisesScreen() {
 
   const isFormOpen = showAdd || editing !== null
 
+  // Voorkeuren op basis van jouw feedback na sessies. Alleen tonen als er echt
+  // een uitgesproken voorkeur is (score != 0), anders is het ruis.
+  const preferences = useMemo(() => rankPreferences(data).filter((p) => p.score !== 0), [data])
+  const liked = preferences.filter((p) => p.score > 0).slice(0, 3)
+  const disliked = preferences.filter((p) => p.score < 0).slice(-3).reverse()
+
   return (
     <div className="mx-auto w-full max-w-md flex-1 px-5 pb-28 pt-6">
       <h1 className="mb-1 text-xl font-extrabold text-[#4a4453]">Oefeningenbibliotheek</h1>
       <p className="mb-4 text-sm text-[#7a7285]">
         Rug altijd plat of bol, nooit hol. Herhalingen en sets zijn per oefening instelbaar.
       </p>
+
+      {(liked.length > 0 || disliked.length > 0) && (
+        <Card className="mb-4 bg-mint-50">
+          <p className="mb-2 font-extrabold text-[#4a4453]">Jouw voorkeuren</p>
+          <p className="mb-3 text-xs text-[#7a7285]">
+            Op basis van je feedback na sessies. Fijne oefeningen komen iets vaker terug in je
+            dagprogramma, vervelende iets minder — maar alles blijft beschikbaar.
+          </p>
+          {liked.length > 0 && (
+            <div className="mb-2">
+              <p className="mb-1 text-xs font-bold text-mint-400">😊 Fijn gevonden</p>
+              <div className="flex flex-wrap gap-1.5">
+                {liked.map((p) => (
+                  <Pill key={p.exerciseId} tone="mint">{p.exercise.name}</Pill>
+                ))}
+              </div>
+            </div>
+          )}
+          {disliked.length > 0 && (
+            <div>
+              <p className="mb-1 text-xs font-bold text-blush-300">😣 Minder fijn</p>
+              <div className="flex flex-wrap gap-1.5">
+                {disliked.map((p) => (
+                  <Pill key={p.exerciseId} tone="blush">{p.exercise.name}</Pill>
+                ))}
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
 
       <div className="mb-4 space-y-3">
         {data.exercises.map((ex) => (

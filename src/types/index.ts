@@ -106,6 +106,31 @@ export interface ExerciseCompletionLog {
   level: StoplightLevel
 }
 
+export type ExerciseFeeling = 'fijn' | 'neutraal' | 'vervelend'
+
+export const EXERCISE_FEELING_LABELS: Record<ExerciseFeeling, string> = {
+  fijn: 'Fijn',
+  neutraal: 'Neutraal',
+  vervelend: 'Vervelend',
+}
+
+export const EXERCISE_FEELING_EMOJI: Record<ExerciseFeeling, string> = {
+  fijn: '😊',
+  neutraal: '😐',
+  vervelend: '😣',
+}
+
+// Hoe een oefening aanvoelde, gelogd na een sessie. Append-only, net als de
+// andere logs; hieruit leiden we een voorkeurslijst af (welke oefeningen
+// prettig zijn en welke vervelend), die de dagelijkse selectie licht bijstuurt.
+export interface ExerciseFeedbackLog {
+  id: string
+  exerciseId: string
+  feeling: ExerciseFeeling
+  date: string
+  timestamp: number
+}
+
 export type VolleyballPhase = 1 | 2 | 3 | 4
 
 export interface VolleyballState {
@@ -138,6 +163,10 @@ export interface Settings {
   // omdat Web Audio op iOS niet altijd hoorbaar is (stil/mute-standje,
   // schermvergrendeling); een duidelijkere piep kan dan beter opvallen.
   timerSound: TimerSound
+  // Persoonlijk weekdoel: aantal actieve dagen (oefenen of fietsen) per week.
+  // Bewust flexibel i.p.v. een harde dagelijkse eis, zodat een drukke dag
+  // geen schuldgevoel geeft.
+  weeklyMovementGoal: number
 }
 
 export interface StreakData {
@@ -164,6 +193,7 @@ export interface AppData {
   cyclingLogs: CyclingLog[]
   restLogs: RestLog[]
   exerciseCompletions: ExerciseCompletionLog[]
+  exerciseFeedback: ExerciseFeedbackLog[]
   physioNotes: PhysioNote[]
   settings: Settings
   streak: StreakData

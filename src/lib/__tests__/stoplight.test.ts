@@ -11,6 +11,7 @@ const SETTINGS: Settings = {
   reminder: { enabled: false, time: '08:00' },
   showOptionalStretchOnRestDay: true,
   timerSound: 'chime',
+  weeklyMovementGoal: 3,
 }
 
 let idCounter = 0

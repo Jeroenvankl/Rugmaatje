@@ -17,6 +17,7 @@ import { exportAsCsv, exportAsText } from '../lib/storage'
 import { shareOrDownloadFile } from '../lib/share'
 import { comparePainTrend, hasEnoughDataForTrend } from '../lib/trends'
 import { buildWeeklySummaries, countLocations } from '../lib/weekly'
+import { RecoveryJourney } from '../components/RecoveryJourney'
 import { formatShortDate, lastNDays, todayKey } from '../lib/dates'
 import { PAIN_LOCATION_LABELS, RADIATING_LABELS, type PainLocation } from '../types'
 
@@ -91,6 +92,8 @@ export function HistoryScreen() {
     <div className="mx-auto w-full max-w-md flex-1 px-5 pb-28 pt-6">
       <h1 className="mb-1 text-xl font-extrabold text-[#4a4453]">Geschiedenis</h1>
       <p className="mb-4 text-sm text-[#7a7285]">Pijnscore over tijd, met markers voor oefen-, rust- en fietsdagen.</p>
+
+      <RecoveryJourney />
 
       <Card className="mb-4 border-2 border-lavender-100 bg-lavender-50">
         <p className="mb-2 font-extrabold text-[#4a4453]">Jouw trend</p>

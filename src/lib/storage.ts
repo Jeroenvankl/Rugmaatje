@@ -12,7 +12,7 @@ const STORAGE_KEY = 'rugmaatje_data_v1'
  * niet hebben geüpdatet moeten in één keer kunnen doorschakelen naar de
  * huidige versie.
  */
-export const SCHEMA_VERSION = 3
+export const SCHEMA_VERSION = 4
 
 export const DEFAULT_SETTINGS: Settings = {
   disclaimerSeenAt: null,
@@ -28,6 +28,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   showOptionalStretchOnRestDay: true,
   timerSound: 'chime',
+  weeklyMovementGoal: 3,
 }
 
 export const DEFAULT_STREAK: StreakData = {
@@ -49,6 +50,7 @@ function defaultData(): AppData {
     cyclingLogs: [],
     restLogs: [],
     exerciseCompletions: [],
+    exerciseFeedback: [],
     physioNotes: [],
     settings: DEFAULT_SETTINGS,
     streak: DEFAULT_STREAK,
@@ -68,6 +70,7 @@ function normalizeAppData(parsed: Partial<AppData> | null | undefined): AppData 
     cyclingLogs: p.cyclingLogs ?? [],
     restLogs: p.restLogs ?? [],
     exerciseCompletions: p.exerciseCompletions ?? [],
+    exerciseFeedback: p.exerciseFeedback ?? [],
     physioNotes: p.physioNotes ?? [],
     settings: {
       ...DEFAULT_SETTINGS,

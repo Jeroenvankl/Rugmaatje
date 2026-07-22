@@ -5,6 +5,8 @@ import type {
   CyclingLog,
   Exercise,
   ExerciseCompletionLog,
+  ExerciseFeedbackLog,
+  ExerciseFeeling,
   PhysioNote,
   RestLog,
   Settings,
@@ -25,6 +27,7 @@ interface AppDataContextValue {
   data: AppData
   addCheckIn: (input: Omit<CheckIn, 'id' | 'timestamp' | 'date' | 'retroactive'>, forDate?: string) => CheckIn
   addExerciseCompletion: (exerciseIds: string[], level: StoplightLevel) => void
+  addExerciseFeedback: (exerciseId: string, feeling: ExerciseFeeling) => void
   addCyclingLog: (input: Omit<CyclingLog, 'id' | 'timestamp' | 'date'>) => void
   addRestLog: (note?: string) => void
   updateExercise: (exercise: Exercise) => void
@@ -111,6 +114,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     const log: ExerciseCompletionLog = { id: uuid(), date: todayKey(), timestamp: Date.now(), exerciseIds, level }
     const current = dataRef.current
     commit({ ...current, exerciseCompletions: [...current.exerciseCompletions, log] })
+  }, [commit])
+
+  const addExerciseFeedback = useCallback<AppDataContextValue['addExerciseFeedback']>((exerciseId, feeling) => {
+    const log: ExerciseFeedbackLog = { id: uuid(), exerciseId, feeling, date: todayKey(), timestamp: Date.now() }
+    const current = dataRef.current
+    commit({ ...current, exerciseFeedback: [...current.exerciseFeedback, log] })
   }, [commit])
 
   const addCyclingLog = useCallback<AppDataContextValue['addCyclingLog']>((input) => {
@@ -272,6 +281,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     data,
     addCheckIn,
     addExerciseCompletion,
+    addExerciseFeedback,
     addCyclingLog,
     addRestLog,
     updateExercise,

@@ -66,9 +66,26 @@ function seededShuffle<T>(items: T[], seed: number): T[] {
  * dag als je de app een keer sluit en heropent), een andere datum geeft een
  * andere volgorde, zodat het niet elke dag dezelfde oefeningen zijn.
  */
-export function pickDailyVariation(pool: Exercise[], count: number, dateKey: string): Exercise[] {
+export function pickDailyVariation(
+  pool: Exercise[],
+  count: number,
+  dateKey: string,
+  weights?: Map<string, number>,
+): Exercise[] {
   const seed = hashSeed(`${dateKey}|${pool.map((e) => e.id).sort().join(',')}`)
-  return seededShuffle(pool, seed).slice(0, Math.min(count, pool.length))
+  const shuffled = seededShuffle(pool, seed)
+  if (weights && weights.size > 0) {
+    // Lichte bijsturing op basis van voorkeur: prettige oefeningen schuiven
+    // iets naar voren, vervelende iets naar achteren — maar de dagelijkse
+    // willekeur (shuffle-positie) blijft leidend, zodat het gevarieerd blijft
+    // en niets ooit helemaal wegvalt.
+    return shuffled
+      .map((e, i) => ({ e, rank: i - (weights.get(e.id) ?? 0) }))
+      .sort((a, b) => a.rank - b.rank)
+      .map(({ e }) => e)
+      .slice(0, Math.min(count, pool.length))
+  }
+  return shuffled.slice(0, Math.min(count, pool.length))
 }
 
 /** Bepaalt welke oefeningen vandaag getoond worden, op basis van het stoplicht-niveau en de pijnscore. */
@@ -78,6 +95,7 @@ export function getTodayProgram(
   painScore: number,
   settings: ThresholdSettings & { showOptionalStretchOnRestDay: boolean },
   dateKey: string,
+  weights?: Map<string, number>,
 ): TodayProgram {
   const enabled = allExercises.filter((e) => e.enabled)
   const count = exerciseCountForPainScore(painScore, settings)
@@ -85,7 +103,7 @@ export function getTodayProgram(
   switch (level) {
     case 'groen':
       return {
-        exercises: pickDailyVariation(enabled, count, dateKey),
+        exercises: pickDailyVariation(enabled, count, dateKey, weights),
         optional: false,
         intro: `Vandaag voor jou gekozen (wisselt elke dag):`,
       }
@@ -95,6 +113,7 @@ export function getTodayProgram(
           enabled.filter((e) => e.category === 'mobiliteit' || e.category === 'stretch'),
           count,
           dateKey,
+          weights,
         ),
         optional: false,
         intro: 'Vandaag alleen zachte mobiliteit en stretches, gevarieerd gekozen:',
