@@ -113,6 +113,14 @@ export interface VolleyballState {
   currentPhase: VolleyballPhase
 }
 
+export type TimerSound = 'chime' | 'beep' | 'bell'
+
+export const TIMER_SOUND_LABELS: Record<TimerSound, string> = {
+  chime: 'Zachte chime',
+  beep: 'Dubbele piep',
+  bell: 'Bel',
+}
+
 export interface Settings {
   disclaimerSeenAt: number | null
   painThresholdGroenMax: number // pijn 0..deze waarde = groen (mits geen uitstraling)
@@ -126,6 +134,10 @@ export interface Settings {
   // geen oefeningen tonen op een rustdag. Instelbaar zodat dit aansluit bij
   // het advies van de fysio.
   showOptionalStretchOnRestDay: boolean
+  // Welk geluidje de set-timer afspeelt als een set voorbij is. Instelbaar
+  // omdat Web Audio op iOS niet altijd hoorbaar is (stil/mute-standje,
+  // schermvergrendeling); een duidelijkere piep kan dan beter opvallen.
+  timerSound: TimerSound
 }
 
 export interface StreakData {

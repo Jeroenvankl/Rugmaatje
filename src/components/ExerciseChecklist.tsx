@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Exercise } from '../types'
+import type { Exercise, TimerSound } from '../types'
 import { playChime, primeAudio } from '../lib/sound'
+import { useAppData } from '../lib/AppDataContext'
 
 function formatDose(ex: Exercise): string {
   if (ex.reps != null) return `${ex.sets} x ${ex.reps}`
@@ -15,10 +16,12 @@ function formatDose(ex: Exercise): string {
 function DurationTimer({
   durationSec,
   sets,
+  sound,
   onAllSetsComplete,
 }: {
   durationSec: number
   sets: number
+  sound: TimerSound
   onAllSetsComplete: () => void
 }) {
   const [setIndex, setSetIndex] = useState(0)
@@ -31,7 +34,7 @@ function DurationTimer({
     if (remaining <= 0) {
       if (!completedRef.current) {
         completedRef.current = true
-        playChime()
+        playChime(sound)
         navigator.vibrate?.([120, 80, 120])
         setPhase('set-done')
       }
@@ -39,7 +42,7 @@ function DurationTimer({
     }
     const id = setTimeout(() => setRemaining((r) => r - 1), 1000)
     return () => clearTimeout(id)
-  }, [phase, remaining])
+  }, [phase, remaining, sound])
 
   const isLastSet = setIndex + 1 >= sets
 
@@ -123,6 +126,8 @@ export function ExerciseChecklist({
   checked: Set<string>
   onToggle: (id: string) => void
 }) {
+  const { data } = useAppData()
+
   if (exercises.length === 0) {
     return <p className="text-sm text-[#9d93a8]">Geen oefeningen voor vandaag.</p>
   }
@@ -165,6 +170,7 @@ export function ExerciseChecklist({
                   <DurationTimer
                     durationSec={ex.durationSec}
                     sets={ex.sets}
+                    sound={data.settings.timerSound}
                     onAllSetsComplete={() => {
                       if (!isChecked) onToggle(ex.id)
                     }}

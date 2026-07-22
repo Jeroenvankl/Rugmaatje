@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS: Settings = {
     time: '08:00',
   },
   showOptionalStretchOnRestDay: true,
+  timerSound: 'chime',
 }
 
 export const DEFAULT_STREAK: StreakData = {

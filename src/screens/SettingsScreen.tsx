@@ -7,8 +7,11 @@ import { requestNotificationPermission } from '../lib/notifications'
 import { BackupParseError, exportBackupJson, parseBackupJson } from '../lib/storage'
 import { buildPhysioReport, formatPhysioReportText } from '../lib/report'
 import { shareOrDownloadFile } from '../lib/share'
+import { playChime, primeAudio } from '../lib/sound'
 import { todayKey, formatShortDate } from '../lib/dates'
-import type { AppData } from '../types'
+import { TIMER_SOUND_LABELS, type AppData, type TimerSound } from '../types'
+
+const TIMER_SOUND_OPTIONS: TimerSound[] = ['chime', 'beep', 'bell']
 
 export function SettingsScreen() {
   const { data, updateSettings, resetData, importData, addPhysioNote, removePhysioNote } = useAppData()
@@ -149,6 +152,36 @@ export function SettingsScreen() {
             </p>
           </div>
         )}
+      </Card>
+
+      <SectionTitle>Timer-geluid</SectionTitle>
+      <Card className="mb-5">
+        <p className="mb-3 text-sm text-[#7a7285]">
+          Geluid dat de oefentimer afspeelt als een set voorbij is. Werkt dit niet goed op je iPhone
+          (bijv. bij stille stand of schermvergrendeling)? Probeer een ander geluidje en test het hier
+          direct.
+        </p>
+        <div className="mb-3 flex gap-2">
+          {TIMER_SOUND_OPTIONS.map((sound) => (
+            <button
+              key={sound}
+              onClick={() => updateSettings({ timerSound: sound })}
+              className={`flex-1 rounded-xl border-2 px-2 py-2.5 text-sm font-bold ${
+                settings.timerSound === sound ? 'border-sky-200 bg-sky-50 text-[#3d6d85]' : 'border-[#ece7ef] text-[#7a7285]'
+              }`}
+            >
+              {TIMER_SOUND_LABELS[sound]}
+            </button>
+          ))}
+        </div>
+        <SecondaryButton
+          onClick={() => {
+            primeAudio()
+            playChime(settings.timerSound)
+          }}
+        >
+          🔊 Test geluid
+        </SecondaryButton>
       </Card>
 
       <SectionTitle>Notities van je fysio</SectionTitle>

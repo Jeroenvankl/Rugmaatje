@@ -10,6 +10,7 @@ const SETTINGS: Settings = {
   volleyball: { unlockedByPhysio: false, currentPhase: 1 },
   reminder: { enabled: false, time: '08:00' },
   showOptionalStretchOnRestDay: true,
+  timerSound: 'chime',
 }
 
 let idCounter = 0

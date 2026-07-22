@@ -6,13 +6,18 @@ import type { CyclingLog } from '../types'
 export function CyclingRestCard({ onCelebrate }: { onCelebrate: (message: string) => void }) {
   const { addCyclingLog, addRestLog, todayRestLogged, todayCyclingLogged } = useAppData()
   const [mode, setMode] = useState<'none' | 'fietsen' | 'rust'>('none')
-  const [duration, setDuration] = useState(20)
+  // Duur bewaren we als tekst (niet als number), zodat het invoerveld nooit een
+  // niet-verwijderbare "0" forceert. Bij een number-state werd een leeg veld
+  // teruggezet naar 0, wat leidde tot "060" i.p.v. "60".
+  const [durationText, setDurationText] = useState('20')
   const [feeling, setFeeling] = useState<CyclingLog['feeling']>('geen_last')
   const [restNote, setRestNote] = useState('')
 
   const submitCycling = () => {
+    const duration = Math.max(0, Number(durationText) || 0)
     addCyclingLog({ durationMin: duration, feeling })
     setMode('none')
+    setDurationText('20')
     if (feeling === 'meer_last') {
       onCelebrate('Fietsrit gelogd. Voel je meer last? Neem het dan rustiger aan, dat is een prima keuze. 🌤️')
     } else {
@@ -33,10 +38,15 @@ export function CyclingRestCard({ onCelebrate }: { onCelebrate: (message: string
         <p className="mb-3 font-extrabold text-[#4a4453]">Fietsrit loggen</p>
         <label className="mb-1 block text-sm font-bold text-[#7a7285]">Duur (minuten)</label>
         <input
-          type="number"
-          min={0}
-          value={duration}
-          onChange={(e) => setDuration(Number(e.target.value))}
+          type="text"
+          inputMode="numeric"
+          value={durationText}
+          onChange={(e) => {
+            // Alleen cijfers, en verwijder overbodige voorloopnullen (zodat
+            // "060" automatisch "60" wordt en "0" of leeg gewoon blijven kan).
+            const cleaned = e.target.value.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '')
+            setDurationText(cleaned)
+          }}
           className="mb-4 w-full rounded-2xl border-2 border-[#ece7ef] p-3 text-sm outline-none focus:border-sky-200"
         />
         <label className="mb-1 block text-sm font-bold text-[#7a7285]">Hoe voelde je rug?</label>
