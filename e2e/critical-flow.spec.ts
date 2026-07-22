@@ -125,3 +125,31 @@ test('duimpje-snelkeuze vult de check-in van vandaag in op basis van de vorige k
   // Direct afgerond: we landen op het Vandaag-scherm zonder de tussenliggende stappen.
   await expect(page.getByRole('heading', { name: 'Vandaag' })).toBeVisible()
 })
+
+test('timer bij tijd-oefeningen telt af en biedt de oefening als afgerond aan', async ({ page }) => {
+  // De countdown gebruikt een kettende setTimeout (elke tik plant de
+  // volgende), wat niet betrouwbaar samengaat met Playwright's fake clock
+  // (React's effect-scheduling loopt net iets anders dan de virtuele klok
+  // verwacht). Daarom hier gewoon echte tijd afwachten i.p.v. clock-mocking;
+  // dat is voor déze ene test de simpelste en meest betrouwbare aanpak.
+  test.setTimeout(60_000)
+  await page.goto('/')
+
+  await acceptDisclaimer(page)
+  await completeCheckIn(page)
+
+  const badgeYesButton = page.getByRole('button', { name: 'Yes!' })
+  if (await badgeYesButton.isVisible().catch(() => false)) {
+    await badgeYesButton.click()
+  }
+
+  const startButton = page.getByRole('button', { name: /Start oefening/ }).first()
+  await expect(startButton).toBeVisible()
+  await startButton.click()
+
+  await expect(page.getByText(/Set 1 van/)).toBeVisible()
+
+  // Alle standaard tijd-oefeningen duren maximaal 30 sec per set; ruim
+  // daarboven wachten is altijd genoeg om de eerste set te laten aflopen.
+  await expect(page.getByText(/klaar! 🔔/)).toBeVisible({ timeout: 33_000 })
+})
