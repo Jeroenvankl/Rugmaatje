@@ -10,7 +10,7 @@ import type {
   Settings,
   StoplightLevel,
 } from '../types'
-import { loadData, resetAllData, saveData } from './storage'
+import { describeStorageError, loadData, resetAllData, saveData } from './storage'
 import { recalculateStreak } from './streak'
 import { getNewlyEarnedBadges, type BadgeDef } from './badges'
 import { addDays, daysBetween, todayKey } from './dates'
@@ -44,6 +44,8 @@ interface AppDataContextValue {
   missedCheckInDates: string[]
   lastEarnedBadges: BadgeDef[]
   clearLastEarnedBadges: () => void
+  storageError: string | null
+  clearStorageError: () => void
 }
 
 const AppDataContext = createContext<AppDataContextValue | null>(null)
@@ -51,6 +53,7 @@ const AppDataContext = createContext<AppDataContextValue | null>(null)
 export function AppDataProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<AppData>(() => loadData())
   const [lastEarnedBadges, setLastEarnedBadges] = useState<BadgeDef[]>([])
+  const [storageError, setStorageError] = useState<string | null>(null)
 
   // Bewaart altijd de laatst gecommitte data, zodat elke mutatie synchroon
   // (in dezelfde call-stack als de gebruikersactie) kan lezen-en-schrijven.
@@ -73,7 +76,17 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         : next
 
     dataRef.current = finalData
-    saveData(finalData)
+    // Zelfs als opslaan mislukt, blijft de actie voor deze sessie wel
+    // zichtbaar (setData loopt altijd door) — maar dan WEL met een
+    // duidelijke waarschuwing, in plaats van dat de wijziging straks
+    // stilzwijgend weg blijkt te zijn na een herlaad/sluiten van de app.
+    try {
+      saveData(finalData)
+      setStorageError(null)
+    } catch (e) {
+      console.error('RugMaatje: opslaan mislukt', e)
+      setStorageError(describeStorageError(e).message)
+    }
     setData(finalData)
     if (earned.length > 0) setLastEarnedBadges((prev) => [...prev, ...earned])
   }, [])
@@ -185,9 +198,15 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   }, [commit])
 
   const resetData = useCallback(() => {
-    const fresh = resetAllData()
-    dataRef.current = fresh
-    setData(fresh)
+    try {
+      const fresh = resetAllData()
+      dataRef.current = fresh
+      setData(fresh)
+      setStorageError(null)
+    } catch (e) {
+      console.error('RugMaatje: resetten mislukt', e)
+      setStorageError(describeStorageError(e).message)
+    }
     setLastEarnedBadges([])
   }, [])
 
@@ -196,13 +215,20 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   // ineens een stapel badge-popups krijgt voor prestaties die al in het
   // verleden zijn behaald.
   const importData = useCallback<AppDataContextValue['importData']>((restored) => {
-    saveData(restored)
+    try {
+      saveData(restored)
+      setStorageError(null)
+    } catch (e) {
+      console.error('RugMaatje: back-up terugzetten kon niet opgeslagen worden', e)
+      setStorageError(describeStorageError(e).message)
+    }
     dataRef.current = restored
     setData(restored)
     setLastEarnedBadges([])
   }, [])
 
   const clearLastEarnedBadges = useCallback(() => setLastEarnedBadges([]), [])
+  const clearStorageError = useCallback(() => setStorageError(null), [])
 
   const today = todayKey()
   const todayCheckIn = useMemo(
@@ -265,6 +291,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     missedCheckInDates,
     lastEarnedBadges,
     clearLastEarnedBadges,
+    storageError,
+    clearStorageError,
   }
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>

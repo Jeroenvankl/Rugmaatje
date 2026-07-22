@@ -145,6 +145,38 @@ export function saveData(data: AppData): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(envelope))
 }
 
+export interface StorageErrorInfo {
+  isQuotaExceeded: boolean
+  message: string
+}
+
+function isQuotaExceededError(e: unknown): boolean {
+  // "QuotaExceededError" is de moderne standaardnaam; code 22 vangt oudere
+  // browsers op die dat (nog) niet consistent zetten.
+  return e instanceof DOMException && (e.name === 'QuotaExceededError' || e.code === 22)
+}
+
+/**
+ * Vertaalt een fout van localStorage.setItem naar een begrijpelijke melding,
+ * zodat een mislukte schrijfactie nooit stil voorbijgaat: de vorige keer dat
+ * dit gebeurde (zie de iOS-bug eerder), ging er data verloren zonder dat de
+ * gebruiker dat kon weten.
+ */
+export function describeStorageError(e: unknown): StorageErrorInfo {
+  if (isQuotaExceededError(e)) {
+    return {
+      isQuotaExceeded: true,
+      message:
+        'De opslag op dit toestel zit vol, dus deze wijziging is niet bewaard. Maak zo snel mogelijk een back-up (Instellingen) zodat je niets kwijtraakt.',
+    }
+  }
+  return {
+    isQuotaExceeded: false,
+    message:
+      'Deze wijziging kon niet worden opgeslagen op dit toestel (opslag is geblokkeerd of niet beschikbaar). Wijzigingen gaan mogelijk verloren zodra je de app sluit.',
+  }
+}
+
 export function resetAllData(): AppData {
   localStorage.removeItem(STORAGE_KEY)
   const fresh = defaultData()
