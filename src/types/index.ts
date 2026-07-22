@@ -78,6 +78,7 @@ export interface Exercise {
   isCustom: boolean
   level: 'basis' | 'opgebouwd' // voor progressie
   category: ExerciseCategory
+  dailyLifeBenefit?: string // waarom dit helpt in het dagelijks leven, bijv. "makkelijker bukken bij het aankleden"
 }
 
 export type DayActivityType = 'oefenen' | 'rust' | 'fietsen'
@@ -135,12 +136,23 @@ export interface StreakData {
   badgesEarned: string[] // badge ids
 }
 
+// Aantekening over wat de fysiotherapeut heeft gezegd/geadviseerd, zodat de
+// app ook input vanuit de behandeling vasthoudt, niet alleen data die naar
+// buiten gaat.
+export interface PhysioNote {
+  id: string
+  date: string
+  timestamp: number
+  note: string
+}
+
 export interface AppData {
   checkIns: CheckIn[]
   exercises: Exercise[]
   cyclingLogs: CyclingLog[]
   restLogs: RestLog[]
   exerciseCompletions: ExerciseCompletionLog[]
+  physioNotes: PhysioNote[]
   settings: Settings
   streak: StreakData
 }

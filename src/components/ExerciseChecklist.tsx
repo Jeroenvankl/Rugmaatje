@@ -47,6 +47,9 @@ export function ExerciseChecklist({
                     </span>
                   </div>
                   <p className="mt-0.5 text-xs text-[#9d93a8]">{ex.cue}</p>
+                  {ex.dailyLifeBenefit && (
+                    <p className="mt-0.5 text-xs text-mint-400">💡 {ex.dailyLifeBenefit}</p>
+                  )}
                 </div>
               </div>
             </button>

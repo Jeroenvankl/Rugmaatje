@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { AppData } from '../../types'
+import type { AppData, CheckIn, Exercise } from '../../types'
 import { getNewlyEarnedBadges } from '../badges'
 import { DEFAULT_SETTINGS, DEFAULT_STREAK } from '../storage'
-import { todayKey } from '../dates'
+import { addDays, todayKey } from '../dates'
 
 function makeAppData(overrides: Partial<AppData> = {}): AppData {
   return {
@@ -11,8 +11,38 @@ function makeAppData(overrides: Partial<AppData> = {}): AppData {
     cyclingLogs: [],
     restLogs: [],
     exerciseCompletions: [],
+    physioNotes: [],
     settings: DEFAULT_SETTINGS,
     streak: DEFAULT_STREAK,
+    ...overrides,
+  }
+}
+
+let idCounter = 0
+function makeCheckIn(overrides: Partial<CheckIn> & { date: string }): CheckIn {
+  idCounter += 1
+  return {
+    id: `checkin-${idCounter}`,
+    timestamp: new Date(`${overrides.date}T08:00:00`).getTime(),
+    painScore: 0,
+    locations: [],
+    radiating: 'geen',
+    ...overrides,
+  }
+}
+
+function makeExercise(overrides: Partial<Exercise> & { id: string }): Exercise {
+  return {
+    name: overrides.id,
+    goal: '',
+    cue: '',
+    sets: 2,
+    reps: 10,
+    durationSec: null,
+    enabled: true,
+    isCustom: false,
+    level: 'basis',
+    category: 'kracht',
     ...overrides,
   }
 }
@@ -61,5 +91,54 @@ describe('getNewlyEarnedBadges', () => {
   it('geeft niets terug als er niets nieuws is verdiend', () => {
     const data = makeAppData()
     expect(getNewlyEarnedBadges(data)).toEqual([])
+  })
+
+  it('kent "twee-weken-geen-rode-vlag" pas toe na voldoende gelogde dagen zonder rode vlag', () => {
+    const today = todayKey()
+    const teWeinigDagen = makeAppData({
+      checkIns: [0, 1, 2].map((i) => makeCheckIn({ date: addDays(today, -i), painScore: 0 })),
+    })
+    expect(getNewlyEarnedBadges(teWeinigDagen).some((b) => b.id === 'twee-weken-geen-rode-vlag')).toBe(false)
+
+    const genoegVeiligeDagen = makeAppData({
+      checkIns: Array.from({ length: 10 }, (_, i) => makeCheckIn({ date: addDays(today, -i), painScore: 0 })),
+    })
+    expect(getNewlyEarnedBadges(genoegVeiligeDagen).some((b) => b.id === 'twee-weken-geen-rode-vlag')).toBe(true)
+  })
+
+  it('kent "twee-weken-geen-rode-vlag" niet toe als er een rode vlag tussen zat', () => {
+    const today = todayKey()
+    const checkIns = Array.from({ length: 9 }, (_, i) => makeCheckIn({ date: addDays(today, -i), painScore: 0 }))
+    checkIns.push(makeCheckIn({ date: addDays(today, -9), painScore: 0, radiating: 'tintelingen' }))
+    const data = makeAppData({ checkIns })
+    expect(getNewlyEarnedBadges(data).some((b) => b.id === 'twee-weken-geen-rode-vlag')).toBe(false)
+  })
+
+  it('kent "eerste-opgebouwd" toe zodra een oefening het niveau opgebouwd heeft', () => {
+    const data = makeAppData({ exercises: [makeExercise({ id: 'crunch', level: 'opgebouwd' })] })
+    expect(getNewlyEarnedBadges(data).some((b) => b.id === 'eerste-opgebouwd')).toBe(true)
+
+    const nogNiet = makeAppData({ exercises: [makeExercise({ id: 'crunch', level: 'basis' })] })
+    expect(getNewlyEarnedBadges(nogNiet).some((b) => b.id === 'eerste-opgebouwd')).toBe(false)
+  })
+
+  it('kent "pijn-neemt-af" toe bij een duidelijk dalende pijntrend', () => {
+    const today = todayKey()
+    const checkIns = [
+      ...Array.from({ length: 5 }, (_, i) => makeCheckIn({ date: addDays(today, -i), painScore: 1 })),
+      ...Array.from({ length: 5 }, (_, i) => makeCheckIn({ date: addDays(today, -(14 + i)), painScore: 5 })),
+    ]
+    const data = makeAppData({ checkIns })
+    expect(getNewlyEarnedBadges(data).some((b) => b.id === 'pijn-neemt-af')).toBe(true)
+  })
+
+  it('kent "pijn-neemt-af" niet toe bij een stabiele of oplopende trend', () => {
+    const today = todayKey()
+    const checkIns = [
+      ...Array.from({ length: 5 }, (_, i) => makeCheckIn({ date: addDays(today, -i), painScore: 3 })),
+      ...Array.from({ length: 5 }, (_, i) => makeCheckIn({ date: addDays(today, -(14 + i)), painScore: 3 })),
+    ]
+    const data = makeAppData({ checkIns })
+    expect(getNewlyEarnedBadges(data).some((b) => b.id === 'pijn-neemt-af')).toBe(false)
   })
 })

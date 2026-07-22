@@ -101,3 +101,32 @@ export function isProgressionEligible(allCheckIns: CheckIn[], settings: Settings
   const roodCount = levels.filter((l) => l === 'rood' || l === 'rode_vlag').length
   return groenCount >= 5 && roodCount === 0
 }
+
+export interface SafetyWindowResult {
+  daysLogged: number
+  hadRedFlag: boolean
+}
+
+/**
+ * Kijkt terug over `days` dagen of er een rode vlag is geweest, en hoeveel
+ * van die dagen daadwerkelijk een check-in hadden. Dat laatste is nodig om
+ * badges op basis hiervan niet triviaal waar te laten zijn voor iemand die
+ * net is begonnen (geen check-ins = geen rode vlag, maar ook geen verdienste).
+ */
+export function evaluateSafetyWindow(
+  allCheckIns: CheckIn[],
+  settings: Settings,
+  days: number,
+  todayKey: string,
+): SafetyWindowResult {
+  const window = lastNDays(days, todayKey)
+  let daysLogged = 0
+  let hadRedFlag = false
+  for (const day of window) {
+    const dayCheckIn = allCheckIns.filter((c) => c.date === day).sort((a, b) => b.timestamp - a.timestamp)[0]
+    if (!dayCheckIn) continue
+    daysLogged += 1
+    if (quickLevel(dayCheckIn, settings) === 'rode_vlag') hadRedFlag = true
+  }
+  return { daysLogged, hadRedFlag }
+}

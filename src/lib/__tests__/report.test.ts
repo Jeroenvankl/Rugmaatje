@@ -24,6 +24,7 @@ function makeAppData(overrides: Partial<AppData> = {}): AppData {
     cyclingLogs: [],
     restLogs: [],
     exerciseCompletions: [],
+    physioNotes: [],
     settings: DEFAULT_SETTINGS,
     streak: DEFAULT_STREAK,
     ...overrides,
@@ -82,6 +83,18 @@ describe('buildPhysioReport', () => {
     const report = buildPhysioReport(makeAppData(), 7)
     expect(report.avgPainScore).toBeNull()
     expect(report.daysWithCheckIn).toBe(0)
+  })
+
+  it('neemt fysio-notities uit de periode mee, buiten de periode niet', () => {
+    const today = todayKey()
+    const data = makeAppData({
+      physioNotes: [
+        { id: 'n1', date: addDays(today, -2), timestamp: Date.now(), note: 'Binnen periode' },
+        { id: 'n2', date: addDays(today, -100), timestamp: Date.now(), note: 'Buiten periode' },
+      ],
+    })
+    const report = buildPhysioReport(data, 7)
+    expect(report.physioNotes.map((n) => n.note)).toEqual(['Binnen periode'])
   })
 })
 

@@ -7,16 +7,25 @@ import { requestNotificationPermission } from '../lib/notifications'
 import { BackupParseError, exportBackupJson, parseBackupJson } from '../lib/storage'
 import { buildPhysioReport, formatPhysioReportText } from '../lib/report'
 import { shareOrDownloadFile } from '../lib/share'
-import { todayKey } from '../lib/dates'
+import { todayKey, formatShortDate } from '../lib/dates'
 import type { AppData } from '../types'
 
 export function SettingsScreen() {
-  const { data, updateSettings, resetData, importData } = useAppData()
+  const { data, updateSettings, resetData, importData, addPhysioNote, removePhysioNote } = useAppData()
   const [showReset, setShowReset] = useState(false)
   const [showDisclaimer, setShowDisclaimer] = useState(false)
   const [restoreError, setRestoreError] = useState<string | null>(null)
   const [pendingRestore, setPendingRestore] = useState<AppData | null>(null)
+  const [newPhysioNote, setNewPhysioNote] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const recentPhysioNotes = data.physioNotes.slice().sort((a, b) => b.timestamp - a.timestamp)
+
+  const handleAddPhysioNote = () => {
+    if (!newPhysioNote.trim()) return
+    addPhysioNote(newPhysioNote)
+    setNewPhysioNote('')
+  }
 
   const { settings } = data
 
@@ -138,6 +147,44 @@ export function SettingsScreen() {
               Werkt alleen zolang RugMaatje geïnstalleerd is en je toestel dit toestaat. Geen pushmeldingen
               zonder server, dus dit is een lokale herinnering.
             </p>
+          </div>
+        )}
+      </Card>
+
+      <SectionTitle>Notities van je fysio</SectionTitle>
+      <Card className="mb-5">
+        <p className="mb-3 text-sm text-[#7a7285]">
+          Leg vast wat je fysiotherapeut heeft gezegd of geadviseerd, bijvoorbeeld na een afspraak. Zo
+          blijft dat advies bij de hand, en komt het straks ook mee in je fysio-overzicht.
+        </p>
+        <textarea
+          value={newPhysioNote}
+          onChange={(e) => setNewPhysioNote(e.target.value)}
+          rows={2}
+          placeholder="Bijvoorbeeld: bekkenkanteling nu 3x daags, lichte core-oefeningen mogen weer."
+          className="mb-2 w-full rounded-2xl border-2 border-[#ece7ef] p-3 text-sm outline-none focus:border-lavender-300"
+        />
+        <SecondaryButton onClick={handleAddPhysioNote} className="mb-4">
+          Notitie toevoegen
+        </SecondaryButton>
+
+        {recentPhysioNotes.length > 0 && (
+          <div className="space-y-2">
+            {recentPhysioNotes.map((n) => (
+              <div key={n.id} className="flex items-start justify-between gap-2 rounded-2xl border-2 border-[#ece7ef] p-3">
+                <div>
+                  <p className="text-xs font-bold text-[#9d93a8]">{formatShortDate(n.date)}</p>
+                  <p className="text-sm text-[#4a4453]">{n.note}</p>
+                </div>
+                <button
+                  onClick={() => removePhysioNote(n.id)}
+                  className="shrink-0 text-lg font-bold leading-none text-[#9d93a8]"
+                  aria-label="Notitie verwijderen"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
           </div>
         )}
       </Card>

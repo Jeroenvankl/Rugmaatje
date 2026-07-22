@@ -90,3 +90,38 @@ test('check-in, oefening afronden en gemiste dag herstellen houdt de streak in l
   await expect(page.getByText('Dag gemist door drukte? Geen probleem')).not.toBeVisible()
   await expect(page.getByText('op rij ingecheckt')).toBeVisible()
 })
+
+test('duimpje-snelkeuze vult de check-in van vandaag in op basis van de vorige keer', async ({ page }) => {
+  await page.goto('/')
+  await acceptDisclaimer(page)
+  await completeCheckIn(page)
+
+  const badgeYesButton = page.getByRole('button', { name: 'Yes!' })
+  if (await badgeYesButton.isVisible().catch(() => false)) {
+    await badgeYesButton.click()
+  }
+
+  // Simuleer "de volgende dag": verwijder de check-in van vandaag zodat het
+  // CheckInScreen opnieuw verschijnt, met gisteren als vorige check-in.
+  await page.evaluate(() => {
+    const raw = JSON.parse(localStorage.getItem('rugmaatje_data_v1')!)
+    const today = new Date()
+    const toKey = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const todayKey = toKey(today)
+    raw.data.checkIns.forEach((c: { date: string }) => {
+      if (c.date === todayKey) c.date = '2020-01-01'
+    })
+    raw.data.streak.lastCheckInDate = '2020-01-01'
+    localStorage.setItem('rugmaatje_data_v1', JSON.stringify(raw))
+  })
+  await page.reload()
+
+  // Stap 0 (pijnscore) -> Volgende brengt ons nu op de duimpje-stap.
+  await page.getByRole('button', { name: 'Volgende' }).click()
+  await expect(page.getByText('Verder nog bijzonderheden, of net als de vorige keer?')).toBeVisible()
+  await page.getByRole('button', { name: '👍 Net als de vorige keer, verder niks bijzonders' }).click()
+
+  // Direct afgerond: we landen op het Vandaag-scherm zonder de tussenliggende stappen.
+  await expect(page.getByRole('heading', { name: 'Vandaag' })).toBeVisible()
+})

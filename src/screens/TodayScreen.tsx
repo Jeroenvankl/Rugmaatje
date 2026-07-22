@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useAppData } from '../lib/AppDataContext'
 import { evaluateStoplight, isProgressionEligible } from '../lib/stoplight'
 import { getTodayProgram } from '../lib/program'
+import { comparePainTrend, hasEnoughDataForTrend } from '../lib/trends'
 import { todayKey, formatNiceDate } from '../lib/dates'
 import { StopScreen } from '../components/StopScreen'
 import { Card, Pill, PrimaryButton, SecondaryButton } from '../components/ui'
@@ -64,6 +65,14 @@ export function TodayScreen() {
     () => stoplight?.level === 'groen' && isProgressionEligible(data.checkIns, data.settings, todayKey()),
     [stoplight, data.checkIns, data.settings],
   )
+
+  // Alleen een positieve trend hier tonen (nooit "meer pijn"): dit is het
+  // scherm dat je elke dag ziet, dus dit moet motiveren, niet dagelijks
+  // ontmoedigen. De volledige trend (ook stabiel/oplopend) staat in Historie.
+  const showsPositiveTrend = useMemo(() => {
+    const trend = comparePainTrend(data.checkIns, todayKey(), 14)
+    return hasEnoughDataForTrend(trend) && (trend.delta ?? 0) <= -0.5
+  }, [data.checkIns])
 
   // Progressie wordt per oefening aangeboden (nooit als één blanket bump over
   // alles), zodat je zelf kunt kiezen welke oefening al klaar is voor een
@@ -139,6 +148,12 @@ export function TodayScreen() {
         </div>
         <StreakBadge streak={data.streak} />
       </div>
+
+      {showsPositiveTrend && (
+        <p className="mb-3 text-sm font-bold text-mint-400">
+          📉 Je pijn is de laatste 2 weken gemiddeld lager dan de 2 weken ervoor — mooi bezig!
+        </p>
+      )}
 
       <Card className={`mb-4 ${style.bg}/40`}>
         <div className="flex items-center gap-2">

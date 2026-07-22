@@ -5,6 +5,7 @@ import type {
   CyclingLog,
   Exercise,
   ExerciseCompletionLog,
+  PhysioNote,
   RestLog,
   Settings,
   StoplightLevel,
@@ -32,6 +33,8 @@ interface AppDataContextValue {
   updateSettings: (patch: Partial<Settings>) => void
   applyProgressionForExercise: (exerciseId: string) => void
   applyDegressionForExercise: (exerciseId: string) => void
+  addPhysioNote: (note: string) => void
+  removePhysioNote: (id: string) => void
   resetData: () => void
   importData: (data: AppData) => void
   todayCheckIn: CheckIn | null
@@ -165,6 +168,22 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     })
   }, [commit])
 
+  // Notities over wat de fysio heeft gezegd/geadviseerd, zodat de app ook
+  // input vanuit de behandeling vasthoudt en niet alleen data naar buiten
+  // stuurt (zie het fysio-overzicht in Instellingen).
+  const addPhysioNote = useCallback<AppDataContextValue['addPhysioNote']>((note) => {
+    const trimmed = note.trim()
+    if (!trimmed) return
+    const entry: PhysioNote = { id: uuid(), date: todayKey(), timestamp: Date.now(), note: trimmed }
+    const current = dataRef.current
+    commit({ ...current, physioNotes: [...current.physioNotes, entry] })
+  }, [commit])
+
+  const removePhysioNote = useCallback<AppDataContextValue['removePhysioNote']>((id) => {
+    const current = dataRef.current
+    commit({ ...current, physioNotes: current.physioNotes.filter((n) => n.id !== id) })
+  }, [commit])
+
   const resetData = useCallback(() => {
     const fresh = resetAllData()
     dataRef.current = fresh
@@ -235,6 +254,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     updateSettings,
     applyProgressionForExercise,
     applyDegressionForExercise,
+    addPhysioNote,
+    removePhysioNote,
     resetData,
     importData,
     todayCheckIn,

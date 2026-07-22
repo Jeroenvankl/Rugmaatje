@@ -62,6 +62,42 @@ describe('loadData migratie naar nieuwe standaardoefeningen (v1 -> v2)', () => {
   })
 })
 
+describe('loadData migratie naar dailyLifeBenefit-teksten (v2 -> v3)', () => {
+  it('vult de ontbrekende dailyLifeBenefit aan voor bestaande oefeningen, zonder eigen aanpassingen te overschrijven', () => {
+    const { dailyLifeBenefit: _unused, ...zonderTip } = DEFAULT_EXERCISES[0]
+    const aangepasteOefening = { ...DEFAULT_EXERCISES[1], dailyLifeBenefit: 'Eigen, zelf ingevulde tip' }
+    const legacyEnvelope = {
+      schemaVersion: 2,
+      data: {
+        checkIns: [],
+        exercises: [zonderTip, aangepasteOefening],
+        cyclingLogs: [],
+        restLogs: [],
+        exerciseCompletions: [],
+        physioNotes: [],
+        settings: {
+          disclaimerSeenAt: null,
+          painThresholdGroenMax: 1,
+          painThresholdOranjeMax: 3,
+          volleyball: { unlockedByPhysio: false, currentPhase: 1 },
+          reminder: { enabled: false, time: '08:00' },
+          showOptionalStretchOnRestDay: true,
+        },
+        streak: { currentStreak: 0, longestStreak: 0, lastCheckInDate: null, totalCheckIns: 0, badgesEarned: [] },
+      },
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(legacyEnvelope))
+
+    const result = loadData()
+
+    const backfilled = result.exercises.find((e) => e.id === DEFAULT_EXERCISES[0].id)
+    expect(backfilled?.dailyLifeBenefit).toBe(DEFAULT_EXERCISES[0].dailyLifeBenefit)
+
+    const kept = result.exercises.find((e) => e.id === DEFAULT_EXERCISES[1].id)
+    expect(kept?.dailyLifeBenefit).toBe('Eigen, zelf ingevulde tip')
+  })
+})
+
 describe('parseBackupJson', () => {
   it('gooit een duidelijke fout bij ongeldige JSON', () => {
     expect(() => parseBackupJson('dit is geen json')).toThrow(/geldige JSON/)

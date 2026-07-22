@@ -89,6 +89,9 @@ export function ExercisesScreen() {
                 </div>
                 <p className="text-sm text-[#7a7285]">{ex.goal}</p>
                 <p className="mt-1 text-xs italic text-[#9d93a8]">{ex.cue}</p>
+                {ex.dailyLifeBenefit && (
+                  <p className="mt-1 text-xs text-mint-400">💡 {ex.dailyLifeBenefit}</p>
+                )}
                 <p className="mt-2 text-sm font-bold text-[#4a4453]">
                   {ex.sets} x {ex.reps != null ? ex.reps : `${ex.durationSec} sec`}
                 </p>

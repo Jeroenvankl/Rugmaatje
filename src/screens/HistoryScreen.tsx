@@ -4,8 +4,17 @@ import { useAppData } from '../lib/AppDataContext'
 import { Card, Pill, SecondaryButton } from '../components/ui'
 import { exportAsCsv, exportAsText } from '../lib/storage'
 import { shareOrDownloadFile } from '../lib/share'
-import { formatShortDate, lastNDays } from '../lib/dates'
+import { comparePainTrend, hasEnoughDataForTrend } from '../lib/trends'
+import { formatShortDate, lastNDays, todayKey } from '../lib/dates'
 import { PAIN_LOCATION_LABELS, RADIATING_LABELS } from '../types'
+
+const TREND_WINDOW_DAYS = 14
+
+function trendMessage(delta: number): string {
+  if (delta <= -0.5) return '📉 Het gaat de goede kant op: duidelijk minder pijn dan de periode ervoor.'
+  if (delta >= 0.5) return '📈 Iets meer pijn dan de periode ervoor. Blijf je stoplicht-advies volgen.'
+  return '➡️ Ongeveer stabiel ten opzichte van de periode ervoor.'
+}
 
 export function HistoryScreen() {
   const { data } = useAppData()
@@ -36,6 +45,11 @@ export function HistoryScreen() {
     [data.checkIns],
   )
 
+  const trend = useMemo(
+    () => comparePainTrend(data.checkIns, todayKey(), TREND_WINDOW_DAYS),
+    [data.checkIns],
+  )
+
   const handleExportText = () => shareOrDownloadFile(exportAsText(data), 'rugmaatje-overzicht.txt', 'text/plain')
   const handleExportCsv = () => shareOrDownloadFile(exportAsCsv(data), 'rugmaatje-overzicht.csv', 'text/csv')
 
@@ -43,6 +57,24 @@ export function HistoryScreen() {
     <div className="mx-auto w-full max-w-md flex-1 px-5 pb-28 pt-6">
       <h1 className="mb-1 text-xl font-extrabold text-[#4a4453]">Geschiedenis</h1>
       <p className="mb-4 text-sm text-[#7a7285]">Pijnscore over tijd, met markers voor oefen-, rust- en fietsdagen.</p>
+
+      <Card className="mb-4 border-2 border-lavender-100 bg-lavender-50">
+        <p className="mb-2 font-extrabold text-[#4a4453]">Jouw trend</p>
+        {hasEnoughDataForTrend(trend) ? (
+          <>
+            <p className="text-sm text-[#5c5566]">
+              Laatste {trend.windowDays} dagen gemiddeld <span className="font-extrabold">{trend.current.avgPainScore}/10</span>,
+              de {trend.windowDays} dagen ervoor gemiddeld <span className="font-extrabold">{trend.previous.avgPainScore}/10</span>.
+            </p>
+            <p className="mt-2 text-sm font-bold text-[#4a4453]">{trendMessage(trend.delta ?? 0)}</p>
+          </>
+        ) : (
+          <p className="text-sm text-[#7a7285]">
+            Blijf inchecken — na een paar dagen zie je hier hoe je pijn zich ontwikkelt ten opzichte van de
+            periode ervoor.
+          </p>
+        )}
+      </Card>
 
       <div className="mb-3 flex gap-2">
         {[14, 30, 90].map((n) => (

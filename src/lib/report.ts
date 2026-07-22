@@ -15,6 +15,7 @@ export interface PhysioReport {
   exerciseSessions: number
   restDays: number
   cyclingSessions: number
+  physioNotes: { date: string; note: string }[]
 }
 
 /** Bouwt een samenvatting van de afgelopen `days` dagen, bedoeld om te delen met de fysiotherapeut. */
@@ -59,6 +60,10 @@ export function buildPhysioReport(data: AppData, days: number = 28): PhysioRepor
     exerciseSessions: data.exerciseCompletions.filter((c) => c.date >= startDate).length,
     restDays: data.restLogs.filter((r) => r.date >= startDate).length,
     cyclingSessions: data.cyclingLogs.filter((c) => c.date >= startDate).length,
+    physioNotes: data.physioNotes
+      .filter((n) => n.date >= startDate)
+      .sort((a, b) => a.timestamp - b.timestamp)
+      .map((n) => ({ date: n.date, note: n.note })),
   }
 }
 
@@ -97,6 +102,13 @@ export function formatPhysioReportText(report: PhysioReport): string {
     lines.push('Geen rode-vlag-momenten in deze periode.')
   }
   lines.push('')
+  if (report.physioNotes.length > 0) {
+    lines.push('Notities van de fysiotherapeut in deze periode:')
+    report.physioNotes.forEach(({ date, note }) => {
+      lines.push(`  ${date}: ${note}`)
+    })
+    lines.push('')
+  }
   lines.push('Dit overzicht is gegenereerd door RugMaatje en vervangt geen medisch advies.')
   return lines.join('\n')
 }

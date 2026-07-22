@@ -1,4 +1,7 @@
 import type { AppData } from '../types'
+import { evaluateSafetyWindow } from './stoplight'
+import { comparePainTrend, hasEnoughDataForTrend } from './trends'
+import { todayKey } from './dates'
 
 export interface BadgeDef {
   id: string
@@ -78,6 +81,37 @@ export const BADGE_DEFS: BadgeDef[] = [
     description: '30 check-ins in totaal. Je bouwt aan een mooie gewoonte.',
     emoji: '💐',
     check: (d) => d.streak.totalCheckIns >= 30,
+  },
+  // De badges hierboven vieren vooral AANWEZIGHEID (streaks, aantallen).
+  // Deze drie vieren echte HERSTEL-vooruitgang, zodat de app ook beloont
+  // waar het je uiteindelijk om gaat: beter worden, niet alleen "de app
+  // geopend hebben".
+  {
+    id: 'twee-weken-geen-rode-vlag',
+    name: 'Twee sterke weken',
+    description: '14 dagen op rij geen rode vlag gehad.',
+    emoji: '🛡️',
+    check: (d) => {
+      const w = evaluateSafetyWindow(d.checkIns, d.settings, 14, todayKey())
+      return w.daysLogged >= 10 && !w.hadRedFlag
+    },
+  },
+  {
+    id: 'eerste-opgebouwd',
+    name: 'Eerste stap vooruit',
+    description: 'Je eerste oefening is opgebouwd naar een volgend niveau.',
+    emoji: '🌿',
+    check: (d) => d.exercises.some((e) => e.level === 'opgebouwd'),
+  },
+  {
+    id: 'pijn-neemt-af',
+    name: 'Het gaat de goede kant op',
+    description: 'Je gemiddelde pijn is duidelijk lager dan de periode ervoor.',
+    emoji: '📉',
+    check: (d) => {
+      const trend = comparePainTrend(d.checkIns, todayKey(), 14)
+      return hasEnoughDataForTrend(trend) && (trend.delta ?? 0) <= -1
+    },
   },
 ]
 

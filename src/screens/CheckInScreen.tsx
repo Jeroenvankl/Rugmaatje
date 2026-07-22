@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { PainLocation, RadiatingSymptom } from '../types'
 import { PAIN_LOCATION_LABELS, RADIATING_LABELS } from '../types'
 import { useAppData } from '../lib/AppDataContext'
@@ -8,7 +8,7 @@ const LOCATIONS: PainLocation[] = ['onderrug_links', 'onderrug_rechts', 'onderru
 const RADIATING_OPTIONS: RadiatingSymptom[] = ['geen', 'licht', 'toegenomen', 'zakt_onder_knie', 'tintelingen', 'krachtsverlies']
 
 export function CheckInScreen({ onDone }: { onDone: () => void }) {
-  const { addCheckIn } = useAppData()
+  const { addCheckIn, data } = useAppData()
   const [step, setStep] = useState(0)
   const [painScore, setPainScore] = useState(2)
   const [locations, setLocations] = useState<PainLocation[]>([])
@@ -18,22 +18,41 @@ export function CheckInScreen({ onDone }: { onDone: () => void }) {
   const [morningStiffness, setMorningStiffness] = useState<number | null>(null)
   const [showOptional, setShowOptional] = useState(false)
 
+  const previousCheckIn = useMemo(
+    () => data.checkIns.slice().sort((a, b) => b.timestamp - a.timestamp)[0] ?? null,
+    [data.checkIns],
+  )
+
   const toggleLocation = (loc: PainLocation) => {
     setLocations((prev) => (prev.includes(loc) ? prev.filter((l) => l !== loc) : [...prev, loc]))
   }
 
-  const steps = ['pijn', 'locatie', 'uitstraling', 'notitie', 'optioneel']
+  // Na de pijnscore bieden we, als er een eerdere check-in is, een duimpje-
+  // snelkeuze aan: "net als de vorige keer" neemt locatie/uitstraling van
+  // toen over en rondt meteen af. Er gaat geen data verloren (de pijnscore
+  // van vandaag wordt altijd apart gevraagd) — het scheelt alleen de
+  // stappen die op een rustige/drukke dag vaak toch hetzelfde antwoord
+  // zouden krijgen.
+  const steps = previousCheckIn
+    ? ['pijn', 'duimpje', 'locatie', 'uitstraling', 'notitie', 'optioneel']
+    : ['pijn', 'locatie', 'uitstraling', 'notitie', 'optioneel']
+  const currentStepName = steps[step]
 
-  const submit = () => {
+  const submit = (overrides?: { locations?: PainLocation[]; radiating?: RadiatingSymptom }) => {
     addCheckIn({
       painScore,
-      locations,
-      radiating,
+      locations: overrides?.locations ?? locations,
+      radiating: overrides?.radiating ?? radiating,
       freeText: freeText.trim() || undefined,
       sleepQuality: sleepQuality ?? undefined,
       morningStiffness: morningStiffness ?? undefined,
     })
     onDone()
+  }
+
+  const submitSameAsLastTime = () => {
+    if (!previousCheckIn) return
+    submit({ locations: previousCheckIn.locations, radiating: previousCheckIn.radiating })
   }
 
   const goNext = () => {
@@ -65,7 +84,7 @@ export function CheckInScreen({ onDone }: { onDone: () => void }) {
       <h1 className="mb-6 text-center text-xl font-extrabold text-[#4a4453]">Goedemorgen! Hoe gaat het vandaag met je rug?</h1>
 
       <Card className="mb-6 flex-1">
-        {step === 0 && (
+        {currentStepName === 'pijn' && (
           <div>
             <p className="mb-4 font-bold text-[#4a4453]">Hoeveel pijn of last heb je op dit moment?</p>
             <div className="mb-2 text-center text-5xl font-black text-blush-300">{painScore}</div>
@@ -84,7 +103,34 @@ export function CheckInScreen({ onDone }: { onDone: () => void }) {
           </div>
         )}
 
-        {step === 1 && (
+        {currentStepName === 'duimpje' && previousCheckIn && (
+          <div>
+            <p className="mb-2 font-bold text-[#4a4453]">Verder nog bijzonderheden, of net als de vorige keer?</p>
+            <p className="mb-4 text-sm text-[#7a7285]">
+              Vorige keer:{' '}
+              {previousCheckIn.locations.length > 0
+                ? previousCheckIn.locations.map((l) => PAIN_LOCATION_LABELS[l]).join(', ')
+                : 'geen locatie opgegeven'}
+              , uitstraling: {RADIATING_LABELS[previousCheckIn.radiating]}.
+            </p>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={submitSameAsLastTime}
+                className="rounded-2xl border-2 border-mint-200 bg-mint-50 px-4 py-4 text-left font-bold text-[#4a4453] transition active:scale-[0.98]"
+              >
+                👍 Net als de vorige keer, verder niks bijzonders
+              </button>
+              <button
+                onClick={() => setStep(step + 1)}
+                className="rounded-2xl border-2 border-[#ece7ef] bg-white px-4 py-4 text-left font-bold text-[#7a7285] transition active:scale-[0.98]"
+              >
+                📝 Nee, ik wil dit aanvullen
+              </button>
+            </div>
+          </div>
+        )}
+
+        {currentStepName === 'locatie' && (
           <div>
             <p className="mb-4 font-bold text-[#4a4453]">Waar voel je het? (meerdere mogelijk)</p>
             <div className="flex flex-wrap gap-2">
@@ -105,7 +151,7 @@ export function CheckInScreen({ onDone }: { onDone: () => void }) {
           </div>
         )}
 
-        {step === 2 && (
+        {currentStepName === 'uitstraling' && (
           <div>
             <p className="mb-4 font-bold text-[#4a4453]">Uitstraling in je been?</p>
             <div className="flex flex-col gap-2">
@@ -126,7 +172,7 @@ export function CheckInScreen({ onDone }: { onDone: () => void }) {
           </div>
         )}
 
-        {step === 3 && (
+        {currentStepName === 'notitie' && (
           <div>
             <p className="mb-4 font-bold text-[#4a4453]">Wat voel je precies? (optioneel)</p>
             <textarea
@@ -139,7 +185,7 @@ export function CheckInScreen({ onDone }: { onDone: () => void }) {
           </div>
         )}
 
-        {step === 4 && (
+        {currentStepName === 'optioneel' && (
           <div>
             <p className="mb-1 font-bold text-[#4a4453]">Nog twee optionele vragen</p>
             <p className="mb-4 text-sm text-[#9d93a8]">Mag je overslaan als je wilt.</p>
@@ -174,7 +220,9 @@ export function CheckInScreen({ onDone }: { onDone: () => void }) {
 
       <div className="flex gap-3">
         {step > 0 && <SecondaryButton onClick={goBack}>Terug</SecondaryButton>}
-        <PrimaryButton onClick={goNext}>{step === steps.length - 1 ? 'Check-in afronden' : 'Volgende'}</PrimaryButton>
+        {currentStepName !== 'duimpje' && (
+          <PrimaryButton onClick={goNext}>{step === steps.length - 1 ? 'Check-in afronden' : 'Volgende'}</PrimaryButton>
+        )}
       </div>
     </div>
   )

@@ -12,7 +12,7 @@ const STORAGE_KEY = 'rugmaatje_data_v1'
  * niet hebben geüpdatet moeten in één keer kunnen doorschakelen naar de
  * huidige versie.
  */
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 export const DEFAULT_SETTINGS: Settings = {
   disclaimerSeenAt: null,
@@ -48,6 +48,7 @@ function defaultData(): AppData {
     cyclingLogs: [],
     restLogs: [],
     exerciseCompletions: [],
+    physioNotes: [],
     settings: DEFAULT_SETTINGS,
     streak: DEFAULT_STREAK,
   }
@@ -66,6 +67,7 @@ function normalizeAppData(parsed: Partial<AppData> | null | undefined): AppData 
     cyclingLogs: p.cyclingLogs ?? [],
     restLogs: p.restLogs ?? [],
     exerciseCompletions: p.exerciseCompletions ?? [],
+    physioNotes: p.physioNotes ?? [],
     settings: {
       ...DEFAULT_SETTINGS,
       ...p.settings,
@@ -92,6 +94,22 @@ const MIGRATIONS: Record<number, (data: unknown) => unknown> = {
     const existingIds = new Set(d.exercises.map((e) => e.id))
     const missingDefaults = cloneDefaultExercises().filter((e) => !existingIds.has(e.id))
     return { ...d, exercises: [...d.exercises, ...missingDefaults] }
+  },
+  // v2 -> v3: elke standaardoefening heeft er een "waarom dit helpt in het
+  // dagelijks leven"-tekst bij gekregen. Vul dat alleen aan waar het nog
+  // ontbreekt (nooit een bestaande waarde overschrijven, voor het geval
+  // iemand deze oefening ooit zelf heeft aangepast).
+  2: (data) => {
+    const d = data as AppData
+    const defaultsById = new Map(DEFAULT_EXERCISES.map((e) => [e.id, e]))
+    return {
+      ...d,
+      exercises: d.exercises.map((e) => {
+        if (e.dailyLifeBenefit) return e
+        const def = defaultsById.get(e.id)
+        return def?.dailyLifeBenefit ? { ...e, dailyLifeBenefit: def.dailyLifeBenefit } : e
+      }),
+    }
   },
 }
 
