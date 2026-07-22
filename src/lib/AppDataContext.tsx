@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react'
 import type {
   AppData,
   CheckIn,
@@ -10,14 +10,19 @@ import type {
   StoplightLevel,
 } from '../types'
 import { loadData, resetAllData, saveData } from './storage'
-import { updateStreakForCheckIn } from './streak'
+import { recalculateStreak } from './streak'
 import { getNewlyEarnedBadges, type BadgeDef } from './badges'
-import { todayKey } from './dates'
+import { addDays, daysBetween, todayKey } from './dates'
 import { v4 as uuid } from 'uuid'
+
+// Hoeveel opeenvolgende gemiste dagen we nog aanbieden om achteraf in te
+// vullen. Langer geleden is retroactief invullen niet meer zinvol (te weinig
+// betrouwbare herinnering) en hoort de streak gewoon te resetten.
+const MAX_RETROACTIVE_DAYS = 3
 
 interface AppDataContextValue {
   data: AppData
-  addCheckIn: (input: Omit<CheckIn, 'id' | 'timestamp' | 'date'>) => CheckIn
+  addCheckIn: (input: Omit<CheckIn, 'id' | 'timestamp' | 'date' | 'retroactive'>, forDate?: string) => CheckIn
   addExerciseCompletion: (exerciseIds: string[], level: StoplightLevel) => void
   addCyclingLog: (input: Omit<CyclingLog, 'id' | 'timestamp' | 'date'>) => void
   addRestLog: (note?: string) => void
@@ -26,109 +31,111 @@ interface AppDataContextValue {
   removeExercise: (id: string) => void
   updateSettings: (patch: Partial<Settings>) => void
   applyProgressionForExercise: (exerciseId: string) => void
+  applyDegressionForExercise: (exerciseId: string) => void
   resetData: () => void
   importData: (data: AppData) => void
   todayCheckIn: CheckIn | null
   todayExerciseDone: boolean
   todayRestLogged: boolean
   todayCyclingLogged: boolean
+  missedCheckInDates: string[]
   lastEarnedBadges: BadgeDef[]
   clearLastEarnedBadges: () => void
 }
 
 const AppDataContext = createContext<AppDataContextValue | null>(null)
 
-// NB: setData-updaters hieronder zijn bewust PUUR (geen side effects zoals
-// localStorage schrijven of badges toekennen). React (StrictMode / concurrent
-// features) kan een updater-functie meerdere keren aanroepen; side effects
-// horen daarom in een useEffect die op `data` reageert, niet in de updater.
 export function AppDataProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<AppData>(() => loadData())
   const [lastEarnedBadges, setLastEarnedBadges] = useState<BadgeDef[]>([])
-  const isFirstRender = useRef(true)
 
-  useEffect(() => {
-    // Voorkom een overbodige schrijfactie direct bij het opstarten (data is
-    // net van localStorage geladen).
-    if (isFirstRender.current) {
-      isFirstRender.current = false
-      return
-    }
-    saveData(data)
+  // Bewaart altijd de laatst gecommitte data, zodat elke mutatie synchroon
+  // (in dezelfde call-stack als de gebruikersactie) kan lezen-en-schrijven.
+  // Dit is bewust GEEN useEffect: op iOS kan de pagina vlak na een tik al
+  // gepauzeerd/afgesloten worden (achtergrond, scherm op slot), waardoor een
+  // schrijfactie die pas ná render via een effect zou lopen soms nooit meer
+  // uitgevoerd wordt. Zo ging eerder ingevoerde data verloren. Door synchroon
+  // te schrijven staat de data al veilig in localStorage vóórdat React klaar
+  // is met deze call.
+  const dataRef = useRef<AppData>(data)
 
-    const newBadges = getNewlyEarnedBadges(data)
-    if (newBadges.length > 0) {
-      const withBadges: AppData = {
-        ...data,
-        streak: { ...data.streak, badgesEarned: [...data.streak.badgesEarned, ...newBadges.map((b) => b.id)] },
-      }
-      saveData(withBadges)
-      setData(withBadges)
-      setLastEarnedBadges((prev) => [...prev, ...newBadges])
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data])
+  const commit = useCallback((next: AppData) => {
+    const earned = getNewlyEarnedBadges(next)
+    const finalData =
+      earned.length > 0
+        ? {
+            ...next,
+            streak: { ...next.streak, badgesEarned: [...next.streak.badgesEarned, ...earned.map((b) => b.id)] },
+          }
+        : next
 
-  const addCheckIn = useCallback<AppDataContextValue['addCheckIn']>((input) => {
-    const date = todayKey()
+    dataRef.current = finalData
+    saveData(finalData)
+    setData(finalData)
+    if (earned.length > 0) setLastEarnedBadges((prev) => [...prev, ...earned])
+  }, [])
+
+  const addCheckIn = useCallback<AppDataContextValue['addCheckIn']>((input, forDate) => {
+    const date = forDate ?? todayKey()
     const checkIn: CheckIn = {
       ...input,
       id: uuid(),
       date,
       timestamp: Date.now(),
+      ...(forDate ? { retroactive: true } : {}),
     }
-    setData((current) => {
-      const nextStreak = updateStreakForCheckIn(current.streak, date)
-      return { ...current, checkIns: [...current.checkIns, checkIn], streak: nextStreak }
-    })
+    const current = dataRef.current
+    const nextCheckIns = [...current.checkIns, checkIn]
+    const nextStreak = recalculateStreak(nextCheckIns, current.streak, todayKey())
+    commit({ ...current, checkIns: nextCheckIns, streak: nextStreak })
     return checkIn
-  }, [])
+  }, [commit])
 
   const addExerciseCompletion = useCallback<AppDataContextValue['addExerciseCompletion']>((exerciseIds, level) => {
-    const log: ExerciseCompletionLog = {
-      id: uuid(),
-      date: todayKey(),
-      timestamp: Date.now(),
-      exerciseIds,
-      level,
-    }
-    setData((current) => ({ ...current, exerciseCompletions: [...current.exerciseCompletions, log] }))
-  }, [])
+    const log: ExerciseCompletionLog = { id: uuid(), date: todayKey(), timestamp: Date.now(), exerciseIds, level }
+    const current = dataRef.current
+    commit({ ...current, exerciseCompletions: [...current.exerciseCompletions, log] })
+  }, [commit])
 
   const addCyclingLog = useCallback<AppDataContextValue['addCyclingLog']>((input) => {
     const log: CyclingLog = { ...input, id: uuid(), date: todayKey(), timestamp: Date.now() }
-    setData((current) => ({ ...current, cyclingLogs: [...current.cyclingLogs, log] }))
-  }, [])
+    const current = dataRef.current
+    commit({ ...current, cyclingLogs: [...current.cyclingLogs, log] })
+  }, [commit])
 
   const addRestLog = useCallback<AppDataContextValue['addRestLog']>((note) => {
     const log: RestLog = { id: uuid(), date: todayKey(), timestamp: Date.now(), note }
-    setData((current) => ({ ...current, restLogs: [...current.restLogs, log] }))
-  }, [])
+    const current = dataRef.current
+    commit({ ...current, restLogs: [...current.restLogs, log] })
+  }, [commit])
 
   const updateExercise = useCallback<AppDataContextValue['updateExercise']>((exercise) => {
-    setData((current) => ({
-      ...current,
-      exercises: current.exercises.map((e) => (e.id === exercise.id ? exercise : e)),
-    }))
-  }, [])
+    const current = dataRef.current
+    commit({ ...current, exercises: current.exercises.map((e) => (e.id === exercise.id ? exercise : e)) })
+  }, [commit])
 
   const addExercise = useCallback<AppDataContextValue['addExercise']>((exercise) => {
     const newExercise: Exercise = { ...exercise, id: uuid(), isCustom: true }
-    setData((current) => ({ ...current, exercises: [...current.exercises, newExercise] }))
-  }, [])
+    const current = dataRef.current
+    commit({ ...current, exercises: [...current.exercises, newExercise] })
+  }, [commit])
 
   const removeExercise = useCallback<AppDataContextValue['removeExercise']>((id) => {
-    setData((current) => ({ ...current, exercises: current.exercises.filter((e) => e.id !== id) }))
-  }, [])
+    const current = dataRef.current
+    commit({ ...current, exercises: current.exercises.filter((e) => e.id !== id) })
+  }, [commit])
 
   const updateSettings = useCallback<AppDataContextValue['updateSettings']>((patch) => {
-    setData((current) => ({ ...current, settings: { ...current.settings, ...patch } }))
-  }, [])
+    const current = dataRef.current
+    commit({ ...current, settings: { ...current.settings, ...patch } })
+  }, [commit])
 
-  // Progressie is bewust PER OEFENING, nooit een blanket bump over alles: zo
-  // kan iemand bijv. wel verder met de crunch maar de stretch gelijk houden.
+  // Progressie/degressie zijn bewust PER OEFENING, nooit een blanket bump
+  // over alles: zo kan iemand bijv. wel verder met de crunch maar de stretch
+  // gelijk houden, en andersom weer een stapje terug zetten als het minder gaat.
   const applyProgressionForExercise = useCallback<AppDataContextValue['applyProgressionForExercise']>((exerciseId) => {
-    setData((current) => ({
+    const current = dataRef.current
+    commit({
       ...current,
       exercises: current.exercises.map((e) => {
         if (e.id !== exerciseId || !e.enabled) return e
@@ -139,23 +146,39 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           level: 'opgebouwd' as const,
         }
       }),
-    }))
-  }, [])
+    })
+  }, [commit])
+
+  const applyDegressionForExercise = useCallback<AppDataContextValue['applyDegressionForExercise']>((exerciseId) => {
+    const current = dataRef.current
+    commit({
+      ...current,
+      exercises: current.exercises.map((e) => {
+        if (e.id !== exerciseId || !e.enabled) return e
+        return {
+          ...e,
+          reps: e.reps ? Math.max(1, Math.round(e.reps * 0.9)) : e.reps,
+          durationSec: e.durationSec ? Math.max(5, Math.round(e.durationSec * 0.9)) : e.durationSec,
+          level: 'basis' as const,
+        }
+      }),
+    })
+  }, [commit])
 
   const resetData = useCallback(() => {
     const fresh = resetAllData()
-    isFirstRender.current = true
+    dataRef.current = fresh
     setData(fresh)
     setLastEarnedBadges([])
   }, [])
 
-  // Data herstellen vanuit een back-up: vervangt alle huidige data. Net als
-  // bij resetData slaan we de "nieuwe badges"-check op deze ene overgang over
-  // (isFirstRender-guard), zodat je niet ineens een stapel badge-popups krijgt
-  // voor prestaties die al in het verleden zijn behaald.
+  // Data herstellen vanuit een back-up: vervangt alle huidige data. We slaan
+  // hier bewust de badge-diffing over (net als bij resetData), zodat je niet
+  // ineens een stapel badge-popups krijgt voor prestaties die al in het
+  // verleden zijn behaald.
   const importData = useCallback<AppDataContextValue['importData']>((restored) => {
     saveData(restored)
-    isFirstRender.current = true
+    dataRef.current = restored
     setData(restored)
     setLastEarnedBadges([])
   }, [])
@@ -177,6 +200,29 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [data.cyclingLogs, today],
   )
 
+  // Gemiste dagen: het gat tussen de laatste check-in VÓÓR vandaag en
+  // vandaag, tot een redelijk maximum. Zo kan iemand die de app een dag door
+  // drukte gemist heeft dit alsnog invullen en de streak laten doorlopen,
+  // zonder dat "achteraf invullen" een manier wordt om weken data te
+  // reconstrueren.
+  //
+  // Bewust NIET gebaseerd op data.streak.lastCheckInDate: zodra de
+  // check-in van vandaag zelf is ingevuld, wordt dat direct de nieuwe
+  // lastCheckInDate en zou het gat daarvóór (bijv. gisteren gemist)
+  // onzichtbaar worden, precies op het moment dat we het willen tonen.
+  const missedCheckInDates = useMemo(() => {
+    const priorDates = Array.from(new Set(data.checkIns.map((c) => c.date)))
+      .filter((d) => d !== today)
+      .sort()
+    if (priorDates.length === 0) return []
+    const lastPriorDate = priorDates[priorDates.length - 1]
+    const gap = daysBetween(lastPriorDate, today)
+    if (gap <= 1 || gap - 1 > MAX_RETROACTIVE_DAYS) return []
+    const missed: string[] = []
+    for (let i = 1; i < gap; i++) missed.push(addDays(lastPriorDate, i))
+    return missed.filter((d) => !data.checkIns.some((c) => c.date === d))
+  }, [data.checkIns, today])
+
   const value: AppDataContextValue = {
     data,
     addCheckIn,
@@ -188,12 +234,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     removeExercise,
     updateSettings,
     applyProgressionForExercise,
+    applyDegressionForExercise,
     resetData,
     importData,
     todayCheckIn,
     todayExerciseDone,
     todayRestLogged,
     todayCyclingLogged,
+    missedCheckInDates,
     lastEarnedBadges,
     clearLastEarnedBadges,
   }

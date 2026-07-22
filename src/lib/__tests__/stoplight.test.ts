@@ -9,6 +9,7 @@ const SETTINGS: Settings = {
   painThresholdOranjeMax: 3,
   volleyball: { unlockedByPhysio: false, currentPhase: 1 },
   reminder: { enabled: false, time: '08:00' },
+  showOptionalStretchOnRestDay: true,
 }
 
 let idCounter = 0

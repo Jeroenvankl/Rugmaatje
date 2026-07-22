@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { StreakData } from '../../types'
-import { updateStreakForCheckIn } from '../streak'
+import type { CheckIn, StreakData } from '../../types'
+import { recalculateStreak } from '../streak'
 import { addDays, todayKey } from '../dates'
 
 const BASE: StreakData = {
@@ -8,52 +8,88 @@ const BASE: StreakData = {
   longestStreak: 0,
   lastCheckInDate: null,
   totalCheckIns: 0,
-  badgesEarned: [],
+  badgesEarned: ['eerste-check-in'],
 }
 
-describe('updateStreakForCheckIn', () => {
-  it('start een nieuwe streak van 1 bij de allereerste check-in', () => {
-    const today = todayKey()
-    const result = updateStreakForCheckIn(BASE, today)
-    expect(result.currentStreak).toBe(1)
-    expect(result.longestStreak).toBe(1)
-    expect(result.lastCheckInDate).toBe(today)
-    expect(result.totalCheckIns).toBe(1)
+let idCounter = 0
+function makeCheckIn(date: string): CheckIn {
+  idCounter += 1
+  return {
+    id: `checkin-${idCounter}`,
+    date,
+    timestamp: new Date(`${date}T08:00:00`).getTime(),
+    painScore: 0,
+    locations: [],
+    radiating: 'geen',
+  }
+}
+
+describe('recalculateStreak', () => {
+  it('geeft alles op 0 zonder check-ins, maar behoudt overige streak-velden', () => {
+    const result = recalculateStreak([], BASE, todayKey())
+    expect(result.currentStreak).toBe(0)
+    expect(result.longestStreak).toBe(0)
+    expect(result.lastCheckInDate).toBeNull()
+    expect(result.totalCheckIns).toBe(0)
+    expect(result.badgesEarned).toEqual(BASE.badgesEarned)
   })
 
-  it('telt de streak op bij een check-in op de opeenvolgende dag', () => {
+  it('geeft een streak van 1 bij een enkele check-in vandaag', () => {
     const today = todayKey()
-    const yesterday = addDays(today, -1)
-    const streak: StreakData = { ...BASE, currentStreak: 4, longestStreak: 4, lastCheckInDate: yesterday, totalCheckIns: 4 }
-    const result = updateStreakForCheckIn(streak, today)
+    const result = recalculateStreak([makeCheckIn(today)], BASE, today)
+    expect(result.currentStreak).toBe(1)
+    expect(result.longestStreak).toBe(1)
+    expect(result.totalCheckIns).toBe(1)
+    expect(result.lastCheckInDate).toBe(today)
+  })
+
+  it('telt een reeks opeenvolgende dagen correct op', () => {
+    const today = todayKey()
+    const checkIns = [4, 3, 2, 1, 0].map((i) => makeCheckIn(addDays(today, -i)))
+    const result = recalculateStreak(checkIns, BASE, today)
     expect(result.currentStreak).toBe(5)
     expect(result.longestStreak).toBe(5)
     expect(result.totalCheckIns).toBe(5)
   })
 
-  it('is idempotent: nogmaals inchecken op dezelfde dag verandert niets', () => {
+  it('is idempotent voor dubbele check-ins op dezelfde dag', () => {
     const today = todayKey()
-    const streak: StreakData = { ...BASE, currentStreak: 3, longestStreak: 3, lastCheckInDate: today, totalCheckIns: 3 }
-    const result = updateStreakForCheckIn(streak, today)
-    expect(result).toEqual(streak)
-    expect(result.totalCheckIns).toBe(3)
+    const checkIns = [makeCheckIn(today), makeCheckIn(today), makeCheckIn(addDays(today, -1))]
+    const result = recalculateStreak(checkIns, BASE, today)
+    expect(result.currentStreak).toBe(2)
+    expect(result.totalCheckIns).toBe(2)
   })
 
-  it('reset de streak naar 1 als er een dag is overgeslagen', () => {
+  it('reset de huidige streak naar 0 als de laatste check-in langer dan gisteren geleden is', () => {
     const today = todayKey()
-    const twoDaysAgo = addDays(today, -2)
-    const streak: StreakData = { ...BASE, currentStreak: 6, longestStreak: 6, lastCheckInDate: twoDaysAgo, totalCheckIns: 6 }
-    const result = updateStreakForCheckIn(streak, today)
-    expect(result.currentStreak).toBe(1)
-    expect(result.totalCheckIns).toBe(7)
+    const checkIns = [makeCheckIn(addDays(today, -5)), makeCheckIn(addDays(today, -4))]
+    const result = recalculateStreak(checkIns, BASE, today)
+    expect(result.currentStreak).toBe(0)
+    expect(result.longestStreak).toBe(2)
+    expect(result.lastCheckInDate).toBe(addDays(today, -4))
   })
 
-  it('behoudt de langste streak ooit, ook nadat de huidige streak is gereset', () => {
+  it('herstelt de streak correct als een gemiste dag achteraf wordt ingevuld (backfill)', () => {
     const today = todayKey()
-    const twoDaysAgo = addDays(today, -2)
-    const streak: StreakData = { ...BASE, currentStreak: 10, longestStreak: 10, lastCheckInDate: twoDaysAgo, totalCheckIns: 20 }
-    const result = updateStreakForCheckIn(streak, today)
-    expect(result.currentStreak).toBe(1)
-    expect(result.longestStreak).toBe(10)
+    // Eerst: check-in van 2 dagen geleden en van vandaag, met een gat op gisteren.
+    const withGap = [makeCheckIn(addDays(today, -2)), makeCheckIn(today)]
+    const beforeFill = recalculateStreak(withGap, BASE, today)
+    expect(beforeFill.currentStreak).toBe(1) // gisteren ontbreekt, dus geen doorlopende reeks
+
+    // Nu vult de gebruiker gisteren alsnog retroactief in (los toegevoegd, dus
+    // niet noodzakelijk chronologisch aan het einde van de array).
+    const backfilled = [...withGap, makeCheckIn(addDays(today, -1))]
+    const afterFill = recalculateStreak(backfilled, BASE, today)
+    expect(afterFill.currentStreak).toBe(3)
+    expect(afterFill.longestStreak).toBe(3)
+    expect(afterFill.totalCheckIns).toBe(3)
+  })
+
+  it('herberekent de langste streak zelfs als eerdere (buggy) data een verkeerde waarde had opgeslagen', () => {
+    const today = todayKey()
+    const checkIns = [3, 2, 1, 0].map((i) => makeCheckIn(addDays(today, -i)))
+    const corruptPrevious: StreakData = { ...BASE, longestStreak: 999 }
+    const result = recalculateStreak(checkIns, corruptPrevious, today)
+    expect(result.longestStreak).toBe(4)
   })
 })

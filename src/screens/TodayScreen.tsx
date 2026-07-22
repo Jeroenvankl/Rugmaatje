@@ -12,6 +12,7 @@ import { CyclingRestCard } from '../components/CyclingRestCard'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { CelebrationToast } from '../components/CelebrationToast'
 import { BadgeEarnedModal } from '../components/BadgeEarnedModal'
+import { RetroactiveCheckInModal } from '../components/RetroactiveCheckInModal'
 import type { Exercise, StoplightLevel } from '../types'
 
 function formatDose(ex: Pick<Exercise, 'sets' | 'reps' | 'durationSec'>): string {
@@ -42,6 +43,7 @@ export function TodayScreen() {
     todayRestLogged,
     addExerciseCompletion,
     applyProgressionForExercise,
+    missedCheckInDates,
     lastEarnedBadges,
     clearLastEarnedBadges,
   } = useAppData()
@@ -51,6 +53,7 @@ export function TodayScreen() {
   const [showOverrideConfirm, setShowOverrideConfirm] = useState(false)
   const [celebration, setCelebration] = useState<string | null>(null)
   const [showProgressionOffer, setShowProgressionOffer] = useState(true)
+  const [retroactiveDate, setRetroactiveDate] = useState<string | null>(null)
 
   const stoplight = useMemo(() => {
     if (!todayCheckIn) return null
@@ -77,7 +80,7 @@ export function TodayScreen() {
   }
 
   const style = LEVEL_STYLES[stoplight.level]
-  const baseProgram = getTodayProgram(stoplight.level, data.exercises)
+  const baseProgram = getTodayProgram(stoplight.level, data.exercises, data.settings.showOptionalStretchOnRestDay)
   const program = overrideFullProgram
     ? { ...getTodayProgram('groen', data.exercises), intro: 'Je eigen keuze: volledige set doen.' }
     : baseProgram
@@ -139,6 +142,38 @@ export function TodayScreen() {
           </p>
         ))}
       </Card>
+
+      {retroactiveDate && (
+        <RetroactiveCheckInModal
+          date={retroactiveDate}
+          onClose={() => {
+            setRetroactiveDate(null)
+            setCelebration('Gemiste dag ingevuld, je streak loopt weer door! 🔥')
+          }}
+        />
+      )}
+
+      {missedCheckInDates.length > 0 && (
+        <Card className="mb-4 border-2 border-sky-200 bg-sky-50">
+          <p className="mb-2 font-extrabold text-[#4a4453]">Dag gemist door drukte? Geen probleem 🌤️</p>
+          <p className="mb-3 text-sm text-[#7a7285]">
+            Vul de gemiste dag(en) alsnog terugkijkend in, dan loopt je streak gewoon door.
+          </p>
+          <div className="space-y-2">
+            {missedCheckInDates.map((date) => (
+              <div
+                key={date}
+                className="flex items-center justify-between gap-3 rounded-2xl border-2 border-sky-100 bg-white/70 p-3"
+              >
+                <p className="text-sm font-bold text-[#4a4453]">{formatNiceDate(date)}</p>
+                <SecondaryButton className="w-auto px-4 py-2 text-sm" onClick={() => setRetroactiveDate(date)}>
+                  Invullen
+                </SecondaryButton>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {progressionEligible && showProgressionOffer && !overrideFullProgram && basisExercises.length > 0 && (
         <Card className="mb-4 border-2 border-butter-200 bg-butter-50">

@@ -16,7 +16,7 @@ const emptyForm = {
 }
 
 export function ExercisesScreen() {
-  const { data, updateExercise, addExercise, removeExercise } = useAppData()
+  const { data, updateExercise, addExercise, removeExercise, applyDegressionForExercise } = useAppData()
   const [editing, setEditing] = useState<Exercise | null>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState(emptyForm)
@@ -103,8 +103,11 @@ export function ExercisesScreen() {
                 aan
               </label>
             </div>
-            <div className="mt-3 flex gap-3">
+            <div className="mt-3 flex flex-wrap gap-3">
               <GhostButton onClick={() => startEdit(ex)}>Aanpassen</GhostButton>
+              {ex.level === 'opgebouwd' && (
+                <GhostButton onClick={() => applyDegressionForExercise(ex.id)}>Stapje terug ↩︎</GhostButton>
+              )}
               {ex.isCustom && (
                 <GhostButton onClick={() => removeExercise(ex.id)}>Verwijderen</GhostButton>
               )}

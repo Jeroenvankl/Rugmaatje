@@ -119,8 +119,11 @@ export function HistoryScreen() {
       <div className="space-y-2">
         {recentCheckIns.map((c) => (
           <Card key={c.id} className="py-3">
-            <div className="mb-1 flex items-center justify-between">
-              <p className="text-sm font-bold text-[#4a4453]">{formatShortDate(c.date)}</p>
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-bold text-[#4a4453]">{formatShortDate(c.date)}</p>
+                {c.retroactive && <Pill tone="lavender">achteraf ingevuld</Pill>}
+              </div>
               <Pill tone={c.painScore <= 1 ? 'mint' : c.painScore <= 3 ? 'peach' : 'blush'}>{c.painScore}/10</Pill>
             </div>
             <p className="text-xs text-[#7a7285]">

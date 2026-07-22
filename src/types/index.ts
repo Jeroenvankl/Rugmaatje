@@ -53,6 +53,7 @@ export interface CheckIn {
   freeText?: string
   sleepQuality?: number // 1-5, optioneel
   morningStiffness?: number // 0-10, optioneel
+  retroactive?: boolean // true als dit achteraf ingevuld is voor een gemiste dag
 }
 
 export type StoplightLevel = 'rode_vlag' | 'groen' | 'oranje' | 'rood'
@@ -120,6 +121,10 @@ export interface Settings {
     enabled: boolean
     time: string // HH:MM
   }
+  // Bij niveau 'rood' een optionele lichte stretch tonen, of liever helemaal
+  // geen oefeningen tonen op een rustdag. Instelbaar zodat dit aansluit bij
+  // het advies van de fysio.
+  showOptionalStretchOnRestDay: boolean
 }
 
 export interface StreakData {

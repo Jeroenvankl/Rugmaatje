@@ -5,6 +5,7 @@ import { DisclaimerContent } from '../components/DisclaimerModal'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { requestNotificationPermission } from '../lib/notifications'
 import { BackupParseError, exportBackupJson, parseBackupJson } from '../lib/storage'
+import { buildPhysioReport, formatPhysioReportText } from '../lib/report'
 import { todayKey } from '../lib/dates'
 import type { AppData } from '../types'
 
@@ -25,6 +26,18 @@ export function SettingsScreen() {
     const a = document.createElement('a')
     a.href = url
     a.download = `rugmaatje-backup-${todayKey()}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handlePhysioReportDownload = () => {
+    const report = buildPhysioReport(data, 28)
+    const text = formatPhysioReportText(report)
+    const blob = new Blob([text], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `rugmaatje-fysio-overzicht-${todayKey()}.txt`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -73,6 +86,23 @@ export function SettingsScreen() {
           className="w-full text-stoplicht-amber"
         />
         <p className="mt-2 text-xs text-[#9d93a8]">Daarboven geldt automatisch rood.</p>
+      </Card>
+
+      <SectionTitle>Rustdag-gedrag</SectionTitle>
+      <Card className="mb-5">
+        <label className="flex items-center justify-between gap-3">
+          <span className="text-sm font-bold text-[#4a4453]">Optionele lichte stretch tonen bij rood</span>
+          <input
+            type="checkbox"
+            checked={settings.showOptionalStretchOnRestDay}
+            onChange={(e) => updateSettings({ showOptionalStretchOnRestDay: e.target.checked })}
+            className="h-5 w-5 accent-sky-200"
+          />
+        </label>
+        <p className="mt-2 text-xs text-[#9d93a8]">
+          Staat dit uit, dan toont RugMaatje bij een rustdag (rood) helemaal geen oefeningen meer, alleen
+          de melding om rust te nemen. Overleg dit met je fysio als je twijfelt wat het beste past.
+        </p>
       </Card>
 
       <SectionTitle>Volleybal</SectionTitle>
@@ -134,6 +164,17 @@ export function SettingsScreen() {
           Al je gegevens staan alleen lokaal op dit toestel. Maak regelmatig een back-up, zeker
           voor je van toestel wisselt — reset wist alles definitief.
         </p>
+
+        <p className="mb-1 text-sm font-bold text-[#4a4453]">Overzicht voor je fysiotherapeut</p>
+        <p className="mb-2 text-xs text-[#9d93a8]">
+          Downloadt een leesbare samenvatting van de laatste 4 weken (gemiddelde pijn, stoplicht-verdeling,
+          streak en bijzondere momenten) die je kunt laten zien of mailen aan je fysiotherapeut.
+        </p>
+        <SecondaryButton onClick={handlePhysioReportDownload} className="mb-4">
+          Fysio-overzicht downloaden
+        </SecondaryButton>
+
+        <div className="my-4 h-px bg-[#ece7ef]" />
 
         <p className="mb-1 text-sm font-bold text-[#4a4453]">Back-up maken</p>
         <p className="mb-2 text-xs text-[#9d93a8]">

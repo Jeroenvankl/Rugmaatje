@@ -7,7 +7,11 @@ export interface TodayProgram {
 }
 
 /** Bepaalt welke oefeningen vandaag getoond worden, op basis van het stoplicht-niveau. */
-export function getTodayProgram(level: StoplightLevel, allExercises: Exercise[]): TodayProgram {
+export function getTodayProgram(
+  level: StoplightLevel,
+  allExercises: Exercise[],
+  showOptionalStretchOnRestDay: boolean = true,
+): TodayProgram {
   const enabled = allExercises.filter((e) => e.enabled)
 
   switch (level) {
@@ -24,11 +28,17 @@ export function getTodayProgram(level: StoplightLevel, allExercises: Exercise[])
         intro: 'Vandaag alleen zachte mobiliteit en stretches, je niveau blijft gelijk:',
       }
     case 'rood':
-      return {
-        exercises: enabled.filter((e) => e.category === 'stretch'),
-        optional: true,
-        intro: 'Vandaag is een rustdag. Een lichte stretch mag, maar hoeft niet:',
-      }
+      return showOptionalStretchOnRestDay
+        ? {
+            exercises: enabled.filter((e) => e.category === 'stretch'),
+            optional: true,
+            intro: 'Vandaag is een rustdag. Een lichte stretch mag, maar hoeft niet:',
+          }
+        : {
+            exercises: [],
+            optional: true,
+            intro: 'Vandaag is een rustdag. Focus vooral op rust.',
+          }
     case 'rode_vlag':
       return { exercises: [], optional: true, intro: '' }
   }

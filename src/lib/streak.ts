@@ -1,25 +1,51 @@
-import type { StreakData } from '../types'
-import { addDays } from './dates'
+import type { CheckIn, StreakData } from '../types'
+import { daysBetween } from './dates'
 
 /**
- * Werkt de streak bij wanneer er een check-in wordt gelogd op `date`.
- * Rust nemen breekt de streak NIET: de streak gaat over "elke dag inchecken",
- * niet over "elke dag oefenen". Zo blijft rust nemen altijd winst.
+ * Herberekent de volledige streak vanuit ALLE check-ins, in plaats van
+ * incrementeel bij te werken op basis van alleen de vorige streak-waarde.
+ *
+ * Waarom: incrementeel bijwerken gaat ervan uit dat check-ins altijd in
+ * chronologische volgorde binnenkomen. Zodra iemand een gemiste dag alsnog
+ * achteraf invult (zie AppDataContext), klopt die aanname niet meer. Door
+ * hier steeds vanaf nul te herberekenen op basis van de unieke check-in
+ * datums, werkt terugvullen altijd correct, ongeacht in welke volgorde
+ * check-ins zijn toegevoegd, en herstelt deze functie zichzelf ook als een
+ * eerdere (buggy) berekening ooit een verkeerde streak heeft opgeslagen.
  */
-export function updateStreakForCheckIn(streak: StreakData, date: string): StreakData {
-  if (streak.lastCheckInDate === date) {
-    // Al ingecheckt vandaag, niets te doen.
-    return streak
+export function recalculateStreak(checkIns: CheckIn[], previous: StreakData, today: string): StreakData {
+  const uniqueDates = Array.from(new Set(checkIns.map((c) => c.date))).sort()
+
+  if (uniqueDates.length === 0) {
+    return { ...previous, currentStreak: 0, longestStreak: 0, lastCheckInDate: null, totalCheckIns: 0 }
   }
 
-  const wasYesterday = streak.lastCheckInDate === addDays(date, -1)
-  const newStreak = wasYesterday ? streak.currentStreak + 1 : 1
+  let longest = 1
+  let run = 1
+  for (let i = 1; i < uniqueDates.length; i++) {
+    run = daysBetween(uniqueDates[i - 1], uniqueDates[i]) === 1 ? run + 1 : 1
+    longest = Math.max(longest, run)
+  }
+
+  const lastDate = uniqueDates[uniqueDates.length - 1]
+
+  // De huidige streak telt alleen mee als de laatste check-in vandaag of
+  // gisteren was; anders is de streak al verbroken, ongeacht wat er verder
+  // aan geschiedenis in de data staat.
+  let current = 0
+  if (daysBetween(lastDate, today) <= 1) {
+    current = 1
+    for (let i = uniqueDates.length - 1; i > 0; i--) {
+      if (daysBetween(uniqueDates[i - 1], uniqueDates[i]) === 1) current += 1
+      else break
+    }
+  }
 
   return {
-    ...streak,
-    currentStreak: newStreak,
-    longestStreak: Math.max(streak.longestStreak, newStreak),
-    lastCheckInDate: date,
-    totalCheckIns: streak.totalCheckIns + 1,
+    ...previous,
+    currentStreak: current,
+    longestStreak: longest,
+    lastCheckInDate: lastDate,
+    totalCheckIns: uniqueDates.length,
   }
 }

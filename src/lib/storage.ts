@@ -12,7 +12,7 @@ const STORAGE_KEY = 'rugmaatje_data_v1'
  * niet hebben geüpdatet moeten in één keer kunnen doorschakelen naar de
  * huidige versie.
  */
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 
 export const DEFAULT_SETTINGS: Settings = {
   disclaimerSeenAt: null,
@@ -26,6 +26,7 @@ export const DEFAULT_SETTINGS: Settings = {
     enabled: false,
     time: '08:00',
   },
+  showOptionalStretchOnRestDay: true,
 }
 
 export const DEFAULT_STREAK: StreakData = {
@@ -83,6 +84,15 @@ function normalizeAppData(parsed: Partial<AppData> | null | undefined): AppData 
 const MIGRATIONS: Record<number, (data: unknown) => unknown> = {
   // v0 = "kaal" AppData-object van vóór schema-versionering (geen envelope).
   0: (data) => normalizeAppData(data as Partial<AppData>),
+  // v1 -> v2: 15 nieuwe standaardoefeningen toegevoegd aan de bibliotheek.
+  // Vul ontbrekende default-oefeningen aan voor bestaande gebruikers, zonder
+  // hun eigen aanpassingen of custom-oefeningen aan te raken.
+  1: (data) => {
+    const d = data as AppData
+    const existingIds = new Set(d.exercises.map((e) => e.id))
+    const missingDefaults = cloneDefaultExercises().filter((e) => !existingIds.has(e.id))
+    return { ...d, exercises: [...d.exercises, ...missingDefaults] }
+  },
 }
 
 function migrate(data: unknown, fromVersion: number): AppData {
